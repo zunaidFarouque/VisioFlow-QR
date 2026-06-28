@@ -1,0 +1,12 @@
+[workspace]
+members = ["crates/visioflow-core", "crates/visioflow-cli"]
+resolver = "2"
+
+[patch.crates-io]
+nokhwa = { path = "patches/nokhwa" }
+nokhwa-bindings-windows = { path = "patches/nokhwa-bindings-windows" }
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
