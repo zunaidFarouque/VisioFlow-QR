@@ -46,7 +46,11 @@ pub fn capture_webcam_with_preview(
         VisioFlowError::Capture(format!("failed to start webcam stream: {e}"))
     })?;
 
-    let mut exposure = WebcamExposureController::probe(&camera);
+    for _ in 0..3 {
+        let _ = camera.frame();
+    }
+
+    let mut exposure = WebcamExposureController::probe(&camera, verbose);
     log_exposure_status(&exposure, true);
     if !exposure.is_supported() {
         eprintln!(
@@ -119,10 +123,6 @@ fn scan_with_preview(
     let deadline = Instant::now() + Duration::from_secs(timeout_secs);
     let (result_tx, result_rx) = mpsc::channel::<Vec<String>>();
     let decode_busy = Arc::new(AtomicBool::new(false));
-
-    for _ in 0..3 {
-        let _ = camera.frame();
-    }
 
     let first_rgb = read_camera_rgb(camera).ok_or_else(|| {
         VisioFlowError::Capture("failed to read initial webcam frame".into())

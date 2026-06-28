@@ -1,8 +1,6 @@
-//! Webcam exposure: true EV compensation when supported, relative manual fallback otherwise.
+//! Webcam exposure: true EV compensation when supported, gain-bias hardware fallback otherwise.
 
 use nokhwa::utils::{ControlValueDescription, KnownCameraControl};
-#[cfg(not(target_os = "windows"))]
-use nokhwa::utils::ControlValueSetter;
 use nokhwa::Camera;
 use visioflow_core::decode::{
     apply_relative_exposure_step, clamp_ev_comp_steps, ev_comp_step_ev_from_flags,
@@ -16,18 +14,17 @@ pub const EXPOSURE_SETTLE_FRAMES: u32 = 5;
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum ExposureControlKind {
     EvComp,
-    ManualRelative,
+    GainBias,
     None,
 }
 
 #[derive(Debug, Clone)]
-struct ManualRelativeState {
-    use_gain: bool,
+struct GainBiasState {
     min: i32,
     max: i32,
     step: i32,
     last_applied: Option<i32>,
-    in_manual: bool,
+    in_manual_gain: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -38,17 +35,21 @@ struct EvCompState {
     last_steps: Option<i32>,
 }
 
-/// Arrow-key exposure controller (EV comp primary, manual relative fallback).
+/// Arrow-key exposure controller (EV comp primary, gain-bias fallback).
 pub struct WebcamExposureController {
     kind: ExposureControlKind,
     ev_comp: Option<EvCompState>,
-    manual: Option<ManualRelativeState>,
+    gain_bias: Option<GainBiasState>,
     previous_manual_ev: f32,
 }
 
 impl WebcamExposureController {
     #[must_use]
-    pub fn probe(camera: &Camera) -> Self {
+    pub fn probe(camera: &Camera, verbose: bool) -> Self {
+        if verbose {
+            log_ev_comp_probe_diagnostics(camera);
+        }
+
         #[cfg(target_os = "windows")]
         if let Some(probe) = camera.probe_ev_compensation() {
             let step_ev = ev_comp_step_ev_from_flags(probe.step_flags);
@@ -60,16 +61,16 @@ impl WebcamExposureController {
                     step_ev,
                     last_steps: None,
                 }),
-                manual: None,
+                gain_bias: None,
                 previous_manual_ev: 0.0,
             };
         }
 
-        if let Some(manual) = Self::probe_manual_relative(camera) {
+        if let Some(gain_bias) = Self::probe_gain_bias(camera) {
             return Self {
-                kind: ExposureControlKind::ManualRelative,
+                kind: ExposureControlKind::GainBias,
                 ev_comp: None,
-                manual: Some(manual),
+                gain_bias: Some(gain_bias),
                 previous_manual_ev: 0.0,
             };
         }
@@ -77,39 +78,21 @@ impl WebcamExposureController {
         Self {
             kind: ExposureControlKind::None,
             ev_comp: None,
-            manual: None,
+            gain_bias: None,
             previous_manual_ev: 0.0,
         }
     }
 
-    fn probe_manual_relative(camera: &Camera) -> Option<ManualRelativeState> {
-        if let Some((min, max, step, value)) =
-            Self::probe_integer_control(camera, KnownCameraControl::Exposure)
-        {
-            return Some(ManualRelativeState {
-                use_gain: false,
-                min,
-                max,
-                step,
-                last_applied: Some(value),
-                in_manual: false,
-            });
-        }
-
-        if let Some((min, max, step, value)) =
-            Self::probe_integer_control(camera, KnownCameraControl::Gain)
-        {
-            return Some(ManualRelativeState {
-                use_gain: true,
-                min,
-                max,
-                step,
-                last_applied: Some(value),
-                in_manual: false,
-            });
-        }
-
-        None
+    fn probe_gain_bias(camera: &Camera) -> Option<GainBiasState> {
+        let (min, max, step, _value) =
+            Self::probe_integer_control(camera, KnownCameraControl::Gain)?;
+        Some(GainBiasState {
+            min,
+            max,
+            step,
+            last_applied: None,
+            in_manual_gain: false,
+        })
     }
 
     fn probe_integer_control(
@@ -135,21 +118,16 @@ impl WebcamExposureController {
         }
     }
 
-    fn read_live_control_value(camera: &Camera, use_gain: bool) -> Result<i32> {
-        let control = if use_gain {
-            KnownCameraControl::Gain
-        } else {
-            KnownCameraControl::Exposure
-        };
-        let info = camera.camera_control(control).map_err(|e| {
-            VisioFlowError::Capture(format!("failed to read live {control} value: {e}"))
+    fn read_live_gain(camera: &Camera) -> Result<i32> {
+        let info = camera.camera_control(KnownCameraControl::Gain).map_err(|e| {
+            VisioFlowError::Capture(format!("failed to read live gain value: {e}"))
         })?;
         match info.description() {
             ControlValueDescription::IntegerRange { value, .. }
             | ControlValueDescription::Integer { value, .. } => Ok(*value as i32),
-            _ => Err(VisioFlowError::Capture(format!(
-                "unsupported {control} value description"
-            ))),
+            _ => Err(VisioFlowError::Capture(
+                "unsupported gain value description".into(),
+            )),
         }
     }
 
@@ -162,7 +140,7 @@ impl WebcamExposureController {
     pub fn control_kind_label(&self) -> &'static str {
         match self.kind {
             ExposureControlKind::EvComp => "ev_comp",
-            ExposureControlKind::ManualRelative => "manual_relative",
+            ExposureControlKind::GainBias => "gain_bias",
             ExposureControlKind::None => "none",
         }
     }
@@ -183,8 +161,8 @@ impl WebcamExposureController {
 
         match self.kind {
             ExposureControlKind::EvComp => self.apply_ev_comp(camera, manual_ev, verbose)?,
-            ExposureControlKind::ManualRelative => {
-                self.apply_manual_relative(camera, manual_ev, delta_ev, verbose)?;
+            ExposureControlKind::GainBias => {
+                self.apply_gain_bias(camera, manual_ev, delta_ev, verbose)?;
             }
             ExposureControlKind::None => {}
         }
@@ -229,41 +207,38 @@ impl WebcamExposureController {
         Ok(())
     }
 
-    fn apply_manual_relative(
+    fn apply_gain_bias(
         &mut self,
         camera: &mut Camera,
         manual_ev: f32,
         delta_ev: f32,
         verbose: bool,
     ) -> Result<()> {
-        let Some(state) = self.manual.as_mut() else {
+        let Some(state) = self.gain_bias.as_mut() else {
             return Ok(());
         };
 
         if manual_ev == 0.0 {
-            if state.in_manual {
-                Self::restore_auto_exposure(camera)?;
-                state.in_manual = false;
+            if state.in_manual_gain {
+                Self::restore_auto_gain(camera)?;
+                state.in_manual_gain = false;
                 state.last_applied = None;
 
                 if verbose {
-                    eprintln!("exposure: manual_relative restored auto exposure (0 EV)");
+                    eprintln!("exposure: gain_bias restored auto gain (0 EV, exposure stays auto)");
                 }
             }
             return Ok(());
         }
 
-        if !state.in_manual {
-            let live = Self::read_live_control_value(camera, state.use_gain)?;
-            Self::set_manual_control(camera, state.use_gain, live)?;
+        if !state.in_manual_gain {
+            let live = Self::read_live_gain(camera)?;
+            Self::set_gain_manual(camera, live)?;
             state.last_applied = Some(live);
-            state.in_manual = true;
+            state.in_manual_gain = true;
 
             if verbose {
-                eprintln!(
-                    "exposure: manual_relative latched live {}={live} before adjustment",
-                    if state.use_gain { "gain" } else { "shutter" }
-                );
+                eprintln!("exposure: gain_bias latched live gain={live} (exposure stays auto)");
             }
         }
 
@@ -275,59 +250,37 @@ impl WebcamExposureController {
             return Ok(());
         }
 
-        Self::set_manual_control(camera, state.use_gain, value)?;
+        Self::set_gain_manual(camera, value)?;
         state.last_applied = Some(value);
 
         if verbose {
-            eprintln!(
-                "exposure: manual_relative {manual_ev:+.1} EV ({})",
-                if state.use_gain {
-                    format!("gain={value}")
-                } else {
-                    format!("shutter={value}")
-                }
-            );
+            eprintln!("exposure: gain_bias {manual_ev:+.1} EV (gain={value}, exposure auto)");
         }
 
         Ok(())
     }
 
-    fn set_manual_control(camera: &mut Camera, use_gain: bool, value: i32) -> Result<()> {
+    fn set_gain_manual(camera: &mut Camera, value: i32) -> Result<()> {
         #[cfg(target_os = "windows")]
         {
-            if use_gain {
-                camera
-                    .set_gain_manual(value)
-                    .map_err(|e| VisioFlowError::Capture(format!("failed to set gain: {e}")))?;
-            } else {
-                camera.set_exposure_manual(value).map_err(|e| {
-                    VisioFlowError::Capture(format!("failed to set manual exposure: {e}"))
-                })?;
-            }
+            camera
+                .set_gain_manual(value)
+                .map_err(|e| VisioFlowError::Capture(format!("failed to set gain: {e}")))?;
         }
 
         #[cfg(not(target_os = "windows"))]
         {
-            let control = if use_gain {
-                KnownCameraControl::Gain
-            } else {
-                KnownCameraControl::Exposure
-            };
-            camera
-                .set_camera_control(control, ControlValueSetter::Integer(i64::from(value)))
-                .map_err(|e| {
-                    VisioFlowError::Capture(format!("failed to set {control}: {e}"))
-                })?;
+            let _ = (camera, value);
         }
 
         Ok(())
     }
 
-    fn restore_auto_exposure(camera: &mut Camera) -> Result<()> {
+    fn restore_auto_gain(camera: &mut Camera) -> Result<()> {
         #[cfg(target_os = "windows")]
         {
-            camera.restore_auto_exposure().map_err(|e| {
-                VisioFlowError::Capture(format!("failed to restore auto exposure: {e}"))
+            camera.restore_auto_gain().map_err(|e| {
+                VisioFlowError::Capture(format!("failed to restore auto gain: {e}"))
             })?;
         }
 
@@ -350,11 +303,11 @@ impl WebcamExposureController {
                     }
                 }
             }
-            ExposureControlKind::ManualRelative => {
-                if let Some(state) = self.manual.as_mut() {
-                    if state.in_manual {
-                        let _ = Self::restore_auto_exposure(camera);
-                        state.in_manual = false;
+            ExposureControlKind::GainBias => {
+                if let Some(state) = self.gain_bias.as_mut() {
+                    if state.in_manual_gain {
+                        let _ = Self::restore_auto_gain(camera);
+                        state.in_manual_gain = false;
                         state.last_applied = None;
                     }
                 }
@@ -364,6 +317,43 @@ impl WebcamExposureController {
         self.previous_manual_ev = 0.0;
     }
 }
+
+#[cfg(target_os = "windows")]
+fn log_ev_comp_probe_diagnostics(camera: &Camera) {
+    let diagnostic = camera.probe_ev_compensation_diagnostic();
+    let media_source = diagnostic
+        .media_source_controller
+        .as_deref()
+        .unwrap_or("not tried");
+    let source_reader = diagnostic
+        .source_reader_controller
+        .as_deref()
+        .unwrap_or("not tried");
+    let extended = diagnostic
+        .get_extended_control
+        .as_deref()
+        .unwrap_or("not tried");
+    let lock = diagnostic
+        .lock_payload
+        .as_deref()
+        .unwrap_or("not tried");
+
+    eprintln!("exposure: probe ev_comp via IMFMediaSource … {media_source}");
+    eprintln!("exposure: probe ev_comp via IMFSourceReader … {source_reader}");
+    eprintln!("exposure: probe ev_comp GetExtendedCameraControl … {extended}");
+    eprintln!("exposure: probe ev_comp LockPayload … {lock}");
+
+    if let Some(probe) = diagnostic.probe {
+        let step_ev = ev_comp_step_ev_from_flags(probe.step_flags);
+        eprintln!(
+            "exposure: probe ev_comp OK (range {}..={}, step {step_ev:.2} EV)",
+            probe.min, probe.max
+        );
+    }
+}
+
+#[cfg(not(target_os = "windows"))]
+fn log_ev_comp_probe_diagnostics(_camera: &Camera) {}
 
 pub fn log_exposure_status(controller: &WebcamExposureController, verbose: bool) {
     if !verbose {
@@ -379,18 +369,17 @@ pub fn log_exposure_status(controller: &WebcamExposureController, verbose: bool)
                 );
             }
         }
-        ExposureControlKind::ManualRelative => {
-            if let Some(state) = controller.manual.as_ref() {
-                let label = if state.use_gain { "gain" } else { "shutter" };
+        ExposureControlKind::GainBias => {
+            if let Some(state) = controller.gain_bias.as_ref() {
                 eprintln!(
-                    "exposure: manual relative fallback via {label} (range {}..={})",
+                    "exposure: gain_bias fallback (gain range {}..={}, exposure stays auto)",
                     state.min, state.max
                 );
             }
         }
         ExposureControlKind::None => {
             eprintln!(
-                "exposure: WARNING — no exposure controls; arrow keys cannot change capture brightness"
+                "exposure: WARNING — no hardware EV comp or gain control; arrow keys disabled"
             );
         }
     }
@@ -405,10 +394,27 @@ mod tests {
         let controller = WebcamExposureController {
             kind: ExposureControlKind::None,
             ev_comp: None,
-            manual: None,
+            gain_bias: None,
             previous_manual_ev: 0.0,
         };
         assert!(!controller.is_supported());
         assert_eq!(controller.control_kind_label(), "none");
+    }
+
+    #[test]
+    fn gain_bias_label_differs_from_manual_relative() {
+        let controller = WebcamExposureController {
+            kind: ExposureControlKind::GainBias,
+            ev_comp: None,
+            gain_bias: Some(GainBiasState {
+                min: 0,
+                max: 255,
+                step: 1,
+                last_applied: None,
+                in_manual_gain: false,
+            }),
+            previous_manual_ev: 0.0,
+        };
+        assert_eq!(controller.control_kind_label(), "gain_bias");
     }
 }
