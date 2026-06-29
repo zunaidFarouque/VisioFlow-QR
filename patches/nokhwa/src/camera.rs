@@ -383,6 +383,7 @@ impl Camera {
                 source_reader_controller: None,
                 get_extended_control: Some("not MediaFoundation backend".to_string()),
                 lock_payload: None,
+                read_payload: None,
                 probe: None,
             };
         }

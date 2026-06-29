@@ -96,4 +96,10 @@ mod tests {
         assert_eq!(manual_ev_delta_to_hardware_steps(0.5, 1), 1);
         assert_eq!(manual_ev_delta_to_hardware_steps(-0.5, 1), -1);
     }
+
+    #[test]
+    fn gain_bias_delta_steps_follow_ev_sign() {
+        assert_eq!(apply_relative_exposure_step(64, 1, 0, 255), 65);
+        assert_eq!(apply_relative_exposure_step(64, -1, 0, 255), 63);
+    }
 }

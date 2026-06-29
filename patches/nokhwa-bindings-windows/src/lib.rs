@@ -427,6 +427,7 @@ pub mod wmf {
         pub source_reader_controller: Option<String>,
         pub get_extended_control: Option<String>,
         pub lock_payload: Option<String>,
+        pub read_payload: Option<String>,
         pub probe: Option<EvCompProbe>,
     }
 
@@ -1086,25 +1087,45 @@ pub mod wmf {
             payload_len: u32,
             control_flags: u64,
         ) -> Option<EvCompProbe> {
-            let header_size = size_of::<KSCAMERA_EXTENDEDPROP_HEADER>();
-            let body_size = size_of::<KSCAMERA_EXTENDEDPROP_EVCOMPENSATION>();
-            if payload_len < (header_size + body_size) as u32 {
+            if payload_ptr.is_null() || payload_len == 0 {
                 return None;
             }
 
-            let header = &*(payload_ptr.cast::<KSCAMERA_EXTENDEDPROP_HEADER>());
-            let ev = &*(payload_ptr
-                .add(header_size)
-                .cast::<KSCAMERA_EXTENDEDPROP_EVCOMPENSATION>());
-            let step_flags = if header.Flags != 0 {
-                header.Flags
+            let header_size = size_of::<KSCAMERA_EXTENDEDPROP_HEADER>();
+            let body_size = size_of::<KSCAMERA_EXTENDEDPROP_EVCOMPENSATION>();
+
+            let (ev, step_flags) = if payload_len >= (header_size + body_size) as u32 {
+                let header = &*(payload_ptr.cast::<KSCAMERA_EXTENDEDPROP_HEADER>());
+                let effective_len = header.Size.max(payload_len);
+                if effective_len < (header_size + body_size) as u32 {
+                    return None;
+                }
+                let ev = &*(payload_ptr
+                    .add(header_size)
+                    .cast::<KSCAMERA_EXTENDEDPROP_EVCOMPENSATION>());
+                let step_flags = if header.Flags != 0 {
+                    header.Flags
+                } else {
+                    control_flags
+                };
+                (ev, step_flags)
+            } else if payload_len >= body_size as u32 {
+                // Some drivers return only the EVCOMPENSATION body (no header prefix).
+                let ev = &*(payload_ptr.cast::<KSCAMERA_EXTENDEDPROP_EVCOMPENSATION>());
+                (ev, control_flags)
             } else {
-                control_flags
+                return None;
+            };
+
+            let (min, max) = if ev.Min <= ev.Max && (ev.Min != 0 || ev.Max != 0) {
+                (ev.Min, ev.Max)
+            } else {
+                (-6, 6)
             };
 
             Some(EvCompProbe {
-                min: ev.Min,
-                max: ev.Max,
+                min,
+                max,
                 value: ev.Value,
                 step_flags,
             })
@@ -1122,6 +1143,7 @@ pub mod wmf {
                 source_reader_controller: None,
                 get_extended_control: None,
                 lock_payload: None,
+                read_payload: None,
                 probe: None,
             };
 
@@ -1140,9 +1162,20 @@ pub mod wmf {
                     diagnostic.lock_payload = Some(error.to_string());
                     return diagnostic;
                 }
-                diagnostic.lock_payload = Some("OK".to_string());
+                diagnostic.lock_payload = Some(format!("OK (len={payload_len})"));
                 diagnostic.probe =
                     Self::read_ev_comp_payload(payload_ptr, payload_len, ev_control.GetFlags());
+                if diagnostic.probe.is_none() {
+                    let header_size = size_of::<KSCAMERA_EXTENDEDPROP_HEADER>();
+                    let header = &*(payload_ptr.cast::<KSCAMERA_EXTENDEDPROP_HEADER>());
+                    diagnostic.read_payload = Some(format!(
+                        "failed (len={payload_len}, header.Size={}, need>={})",
+                        header.Size,
+                        header_size + size_of::<KSCAMERA_EXTENDEDPROP_EVCOMPENSATION>()
+                    ));
+                } else {
+                    diagnostic.read_payload = Some("OK".to_string());
+                }
                 let _ = ev_control.UnlockPayload();
             }
 
@@ -1171,17 +1204,20 @@ pub mod wmf {
 
                 let header_size = size_of::<KSCAMERA_EXTENDEDPROP_HEADER>();
                 let body_size = size_of::<KSCAMERA_EXTENDEDPROP_EVCOMPENSATION>();
-                if payload_len < (header_size + body_size) as u32 {
+
+                let ev = if payload_len >= (header_size + body_size) as u32 {
+                    &mut *(payload_ptr
+                        .add(header_size)
+                        .cast::<KSCAMERA_EXTENDEDPROP_EVCOMPENSATION>())
+                } else if payload_len >= body_size as u32 {
+                    &mut *(payload_ptr.cast::<KSCAMERA_EXTENDEDPROP_EVCOMPENSATION>())
+                } else {
                     let _ = ev_control.UnlockPayload();
                     return Err(NokhwaError::StructureError {
                         structure: "KSCAMERA_EXTENDEDPROP_EVCOMPENSATION".to_string(),
-                        error: "payload too small".to_string(),
+                        error: format!("payload too small (len={payload_len})"),
                     });
-                }
-
-                let ev = &mut *(payload_ptr
-                    .add(header_size)
-                    .cast::<KSCAMERA_EXTENDEDPROP_EVCOMPENSATION>());
+                };
                 ev.Value = value;
 
                 ev_control
@@ -1669,6 +1705,7 @@ pub mod wmf {
         pub source_reader_controller: Option<String>,
         pub get_extended_control: Option<String>,
         pub lock_payload: Option<String>,
+        pub read_payload: Option<String>,
         pub probe: Option<EvCompProbe>,
     }
 
@@ -1723,6 +1760,7 @@ pub mod wmf {
                 source_reader_controller: None,
                 get_extended_control: None,
                 lock_payload: None,
+                read_payload: None,
                 probe: None,
             }
         }

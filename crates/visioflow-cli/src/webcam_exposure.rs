@@ -337,11 +337,16 @@ fn log_ev_comp_probe_diagnostics(camera: &Camera) {
         .lock_payload
         .as_deref()
         .unwrap_or("not tried");
+    let read = diagnostic
+        .read_payload
+        .as_deref()
+        .unwrap_or("not tried");
 
     eprintln!("exposure: probe ev_comp via IMFMediaSource … {media_source}");
     eprintln!("exposure: probe ev_comp via IMFSourceReader … {source_reader}");
     eprintln!("exposure: probe ev_comp GetExtendedCameraControl … {extended}");
     eprintln!("exposure: probe ev_comp LockPayload … {lock}");
+    eprintln!("exposure: probe ev_comp read payload … {read}");
 
     if let Some(probe) = diagnostic.probe {
         let step_ev = ev_comp_step_ev_from_flags(probe.step_flags);
