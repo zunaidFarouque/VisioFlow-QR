@@ -11,7 +11,7 @@ pub const MIN_PREVIEW_HEIGHT: u32 = 200;
 pub const DEFAULT_WEBCAM_RESOLUTION: (u32, u32) = (1920, 1080);
 
 /// Minimum interval between QR decode attempts on the capture thread.
-pub const DEFAULT_DECODE_INTERVAL_MS: u64 = 250;
+pub const DEFAULT_DECODE_INTERVAL_MS: u64 = 100;
 pub const DEFAULT_DECODE_INTERVAL: Duration = Duration::from_millis(DEFAULT_DECODE_INTERVAL_MS);
 
 /// Clamp decode interval to a sane range for live webcam scanning.

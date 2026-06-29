@@ -1,7 +1,7 @@
 use clap::{Parser, Subcommand, ValueEnum};
 use visioflow_cli::commands::capture::{
     run_capture, write_capture_output, CaptureAction, CaptureArgs, CaptureFilter, CaptureSource,
-    PreviewPosition,
+    ExposureBracketMode, PreviewPosition,
 };
 use visioflow_cli::webcam_preview::DEFAULT_DECODE_INTERVAL_MS;
 use visioflow_cli::webcam_session::{
@@ -82,6 +82,10 @@ enum Commands {
         /// Milliseconds between QR decode attempts (webcam only)
         #[arg(long, default_value_t = DEFAULT_DECODE_INTERVAL_MS)]
         decode_interval_ms: u64,
+
+        /// Exposure bracket cycling: auto probes camera, on forces bracketing, off keeps auto only
+        #[arg(long, value_enum, default_value = "auto")]
+        exposure_bracket: ExposureBracketMode,
     },
 }
 
@@ -123,6 +127,7 @@ fn run() -> visioflow_core::error::Result<()> {
             exposure_step_ms,
             exposure_flush_grabs,
             decode_interval_ms,
+            exposure_bracket,
         } => {
             let payloads = run_capture(CaptureArgs {
                 source,
@@ -136,6 +141,7 @@ fn run() -> visioflow_core::error::Result<()> {
                 exposure_step_ms,
                 exposure_flush_grabs,
                 decode_interval_ms,
+                exposure_bracket,
             })?;
 
             if matches!(cli.output, OutputFormat::Json) {
@@ -178,6 +184,7 @@ mod tests {
                 exposure_step_ms,
                 exposure_flush_grabs,
                 decode_interval_ms,
+                exposure_bracket,
                 ..
             } => {
                 assert!(matches!(preview_position, PreviewPosition::BottomCenter));
@@ -185,6 +192,7 @@ mod tests {
                 assert_eq!(exposure_step_ms, DEFAULT_EXPOSURE_STEP_MS);
                 assert_eq!(exposure_flush_grabs, DEFAULT_EXPOSURE_FLUSH_GRABS);
                 assert_eq!(decode_interval_ms, DEFAULT_DECODE_INTERVAL_MS);
+                assert!(matches!(exposure_bracket, ExposureBracketMode::Auto));
             }
         }
     }

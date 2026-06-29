@@ -1,5 +1,6 @@
 pub mod capture;
 pub mod commands;
+pub mod decode_worker;
 pub mod preview_overlay;
 pub mod screen_bounds;
 pub mod webcam_preview;

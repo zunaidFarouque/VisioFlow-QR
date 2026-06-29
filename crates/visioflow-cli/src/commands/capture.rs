@@ -40,6 +40,17 @@ pub enum PreviewPosition {
     BottomRight,
 }
 
+#[derive(Debug, Clone, Copy, ValueEnum, Default)]
+pub enum ExposureBracketMode {
+    /// Probe at startup and disable bracketing if override plunges the preview dark.
+    #[default]
+    Auto,
+    /// Always run sparse exposure bracket cycling.
+    On,
+    /// Keep auto exposure only; never override.
+    Off,
+}
+
 #[derive(Debug, Clone)]
 pub struct CaptureArgs {
     pub source: CaptureSource,
@@ -53,6 +64,7 @@ pub struct CaptureArgs {
     pub exposure_step_ms: u64,
     pub exposure_flush_grabs: u32,
     pub decode_interval_ms: u64,
+    pub exposure_bracket: ExposureBracketMode,
 }
 
 impl CaptureArgs {
@@ -99,6 +111,7 @@ pub fn run_capture(args: CaptureArgs) -> Result<Vec<String>> {
                 args.exposure_flush_grabs,
                 args.decode_interval_ms,
             ),
+            args.exposure_bracket,
         ),
     }
 }

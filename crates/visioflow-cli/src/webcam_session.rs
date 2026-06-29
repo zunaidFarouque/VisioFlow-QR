@@ -5,14 +5,16 @@ use minifb::{Key, Window, WindowOptions};
 use visioflow_core::error::{Result, VisioFlowError};
 use visioflow_core::opencv_webcam::bracket::{BracketAction, BracketConfig, BracketState};
 use visioflow_core::opencv_webcam::exposure_hal::OpenCvExposureHal;
+use visioflow_core::opencv_webcam::exposure_probe::probe_override_safe;
 use visioflow_core::opencv_webcam::exposure_table::VideoBackend;
 use visioflow_core::opencv_webcam::frame_stream::{FrameStream, OpenCvCaptureDriver};
 use visioflow_core::opencv_webcam::models::resolve_model_paths;
 use visioflow_core::opencv_webcam::wechat_decoder::WeChatCnnDecoder;
 use visioflow_core::traits::{BgrFrame, CnnQrDecoder, ExposureHal, LiveFrameSource, OpticalFilterKind};
 
+use crate::commands::capture::{ExposureBracketMode, PreviewPosition};
+use crate::decode_worker::{AsyncDecodeWorker, DecodeOutcome};
 use crate::preview_overlay::draw_preview_status_overlay;
-use crate::commands::capture::PreviewPosition;
 use crate::screen_bounds::{apply_anchored_preview_position, primary_work_area};
 use crate::webcam_preview::{
     downscale_rgb_to_minifb_buffer, preview_dimensions_from_screen, should_attempt_decode,
@@ -22,10 +24,10 @@ use crate::webcam_preview::{
 pub const DEFAULT_WEBCAM_TIMEOUT_SECS: u64 = 20;
 
 /// Milliseconds to wait at each exposure before advancing the bracket.
-pub const DEFAULT_EXPOSURE_STEP_MS: u64 = 250;
+pub const DEFAULT_EXPOSURE_STEP_MS: u64 = 100;
 
 /// Frames to discard after each exposure change so the sensor can settle.
-pub const DEFAULT_EXPOSURE_FLUSH_GRABS: u32 = 3;
+pub const DEFAULT_EXPOSURE_FLUSH_GRABS: u32 = 2;
 
 /// Tunable timing for webcam decode and exposure bracket cycling.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -71,9 +73,10 @@ pub fn capture_webcam_with_preview(
     preview_position: PreviewPosition,
     preview_scale: f32,
     timing: WebcamTiming,
+    exposure_bracket: ExposureBracketMode,
 ) -> Result<Vec<String>> {
     let model_paths = resolve_model_paths()?;
-    let decoder = WeChatCnnDecoder::init(&model_paths)?;
+    let decoder = Arc::new(WeChatCnnDecoder::init(&model_paths)?);
     let stream = Arc::new(FrameStream::start(OpenCvCaptureDriver::open_default()?));
     let backend = if cfg!(target_os = "windows") {
         VideoBackend::Dshow
@@ -95,29 +98,60 @@ pub fn capture_webcam_with_preview(
     }
     scan_with_preview(
         stream,
-        &decoder,
+        decoder,
         &exposure,
         timeout_secs,
         verbose,
         preview_position,
         preview_scale,
         timing,
+        exposure_bracket,
     )
+}
+
+fn resolve_bracketing_enabled<F>(
+    mode: ExposureBracketMode,
+    frame_source: &F,
+    exposure: &OpenCvExposureHal<OpenCvCaptureDriver>,
+    flush_grabs: u32,
+    verbose: bool,
+) -> Result<bool>
+where
+    F: LiveFrameSource,
+{
+    match mode {
+        ExposureBracketMode::On => Ok(true),
+        ExposureBracketMode::Off => Ok(false),
+        ExposureBracketMode::Auto => {
+            let safe = probe_override_safe(frame_source, exposure, flush_grabs)?;
+            if verbose {
+                if safe {
+                    eprintln!("exposure: bracketing enabled after probe");
+                } else {
+                    eprintln!(
+                        "exposure: bracketing disabled (camera unsafe for manual override)"
+                    );
+                }
+            }
+            Ok(safe)
+        }
+    }
 }
 
 fn scan_with_preview<F, D>(
     frame_source: F,
-    decoder: &D,
+    decoder: Arc<D>,
     exposure: &OpenCvExposureHal<OpenCvCaptureDriver>,
     timeout_secs: u64,
     verbose: bool,
     preview_position: PreviewPosition,
     preview_scale: f32,
     timing: WebcamTiming,
+    exposure_bracket: ExposureBracketMode,
 ) -> Result<Vec<String>>
 where
     F: LiveFrameSource,
-    D: CnnQrDecoder,
+    D: CnnQrDecoder + 'static,
 {
     let deadline = Instant::now() + Duration::from_secs(timeout_secs);
     let first = frame_source.latest_frame()?;
@@ -142,6 +176,16 @@ where
         preview_scale,
     );
 
+    let bracket_config = timing.bracket_config();
+    let bracketing_enabled = resolve_bracketing_enabled(
+        exposure_bracket,
+        &frame_source,
+        exposure,
+        timing.flush_grabs,
+        verbose,
+    )?;
+    let decode_worker = AsyncDecodeWorker::spawn(decoder);
+
     let mut window = Window::new(
         &format!(
             "VisioFlow Webcam ({capture_width}x{capture_height}) — OpenCV WeChat Scanner"
@@ -165,10 +209,12 @@ where
     let mut window_buffer =
         Vec::with_capacity((preview_width as usize) * (preview_height as usize));
 
-    let bracket_config = timing.bracket_config();
     let mut last_decode = Instant::now();
-    let mut bracket_state =
-        BracketState::new(bracket_config, Instant::now(), exposure.step_count());
+    let mut bracket_state = BracketState::new(
+        bracket_config,
+        Instant::now(),
+        exposure.step_count(),
+    );
     let mut in_override_mode = false;
 
     while window.is_open() && !window.is_key_down(Key::Escape) && Instant::now() < deadline {
@@ -177,28 +223,31 @@ where
             &frame,
             preview_width,
             preview_height,
+            bracketing_enabled,
             &mut window,
             &mut window_buffer,
         )?;
 
         if should_attempt_decode(last_decode.elapsed(), timing.decode_interval) {
             last_decode = Instant::now();
-            match decoder.decode_bgr(&frame) {
-                Ok(payloads) if !payloads.is_empty() => {
+            let _ = decode_worker.try_submit(frame);
+        }
+
+        if let Some(outcome) = decode_worker.try_recv() {
+            match outcome {
+                DecodeOutcome::Success(payloads) => {
                     if verbose {
                         eprintln!("decode: wechat hit");
                     }
                     return Ok(payloads);
                 }
-                Ok(_) | Err(VisioFlowError::NoPayloads) => {
+                DecodeOutcome::NoPayloads if bracketing_enabled => {
                     match bracket_state.on_primary_decode_failure(Instant::now()) {
                         BracketAction::KeepPrimary => {}
                         BracketAction::AdvanceExposureStep {
                             step_index,
                             flush_grabs,
                         } => {
-                            // Strategy: alternate quickly between no-override and sparse override steps.
-                            // We skip every other step so we return to auto mode faster.
                             if !in_override_mode {
                                 in_override_mode = true;
                             }
@@ -238,7 +287,8 @@ where
                         }
                     }
                 }
-                Err(error) => return Err(error),
+                DecodeOutcome::NoPayloads => {}
+                DecodeOutcome::Failed(error) => return Err(error),
             }
         }
 
@@ -260,6 +310,7 @@ fn show_frame_in_window(
     frame: &BgrFrame,
     preview_width: u32,
     preview_height: u32,
+    bracketing_enabled: bool,
     window: &mut Window,
     buffer: &mut Vec<u32>,
 ) -> Result<()> {
@@ -272,7 +323,7 @@ fn show_frame_in_window(
         preview_height,
         buffer,
     );
-    draw_preview_status_overlay(buffer, preview_width, preview_height);
+    draw_preview_status_overlay(buffer, preview_width, preview_height, bracketing_enabled);
     window
         .update_with_buffer(buffer, preview_width as usize, preview_height as usize)
         .map_err(|e| VisioFlowError::Capture(format!("failed to update preview window: {e}")))?;
@@ -299,14 +350,14 @@ mod tests {
     }
 
     #[test]
-    fn webcam_timing_defaults_are_faster_than_legacy_bracket() {
+    fn webcam_timing_defaults_match_fast_profile() {
         let timing = WebcamTiming::defaults();
-        assert_eq!(timing.exposure_step, Duration::from_millis(250));
-        assert_eq!(timing.flush_grabs, 3);
-        assert_eq!(timing.decode_interval, Duration::from_millis(250));
+        assert_eq!(timing.exposure_step, Duration::from_millis(100));
+        assert_eq!(timing.flush_grabs, 2);
+        assert_eq!(timing.decode_interval, Duration::from_millis(100));
         let bracket = timing.bracket_config();
-        assert_eq!(bracket.primary_timeout, Duration::from_millis(250));
-        assert_eq!(bracket.flush_grabs, 3);
+        assert_eq!(bracket.primary_timeout, Duration::from_millis(100));
+        assert_eq!(bracket.flush_grabs, 2);
     }
 
     #[test]

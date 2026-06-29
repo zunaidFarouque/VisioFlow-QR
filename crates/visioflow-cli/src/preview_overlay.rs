@@ -5,6 +5,7 @@ use font8x8::BASIC_FONTS;
 
 pub const STATUS_LINE_PRIMARY: &str = "Scanning QR code...";
 pub const STATUS_LINE_SECONDARY: &str = "Brightness changes are normal";
+pub const STATUS_LINE_AUTO_ONLY: &str = "Auto exposure only";
 
 const PANEL_ALPHA: f32 = 0.55;
 const TEXT_ALPHA: f32 = 0.92;
@@ -30,14 +31,25 @@ pub fn overlay_scale_for_height(height: u32) -> u32 {
 }
 
 /// Draw a reassurance banner along the bottom of the preview buffer.
-pub fn draw_preview_status_overlay(buffer: &mut [u32], width: u32, height: u32) {
+pub fn draw_preview_status_overlay(
+    buffer: &mut [u32],
+    width: u32,
+    height: u32,
+    bracketing_enabled: bool,
+) {
     if width == 0 || height == 0 || buffer.len() < (width * height) as usize {
         return;
     }
 
+    let secondary = if bracketing_enabled {
+        STATUS_LINE_SECONDARY
+    } else {
+        STATUS_LINE_AUTO_ONLY
+    };
+
     let scale = overlay_scale_for_height(height);
     let char_h = 8 * scale;
-    let lines = [STATUS_LINE_PRIMARY, STATUS_LINE_SECONDARY];
+    let lines = [STATUS_LINE_PRIMARY, secondary];
     let text_block_h = char_h * lines.len() as u32
         + LINE_GAP * lines.len().saturating_sub(1) as u32
         + PANEL_PADDING * 2;
@@ -175,7 +187,7 @@ mod tests {
         let width = 80;
         let height = 40;
         let mut buffer = vec![0x00_FF_00_00; (width * height) as usize];
-        draw_preview_status_overlay(&mut buffer, width, height);
+        draw_preview_status_overlay(&mut buffer, width, height, true);
         assert_eq!(buffer[0], 0x00_FF_00_00);
     }
 
@@ -184,7 +196,7 @@ mod tests {
         let width = 80;
         let height = 40;
         let mut buffer = vec![0x00_FF_FF_FF; (width * height) as usize];
-        draw_preview_status_overlay(&mut buffer, width, height);
+        draw_preview_status_overlay(&mut buffer, width, height, true);
         let bottom_left = buffer[((height - 1) * width) as usize];
         assert_ne!(bottom_left, 0x00_FF_FF_FF);
     }
