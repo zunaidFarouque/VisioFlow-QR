@@ -69,6 +69,11 @@ impl AsyncDecodeWorker {
             Err(TryRecvError::Disconnected) => None,
         }
     }
+
+    /// Drop completed outcomes that are stale after an exposure change.
+    pub fn drain_pending_outcomes(&self) {
+        while self.try_recv().is_some() {}
+    }
 }
 
 impl Drop for AsyncDecodeWorker {

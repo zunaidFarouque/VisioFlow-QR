@@ -5,7 +5,7 @@ use minifb::{Key, Window, WindowOptions};
 use visioflow_core::error::{Result, VisioFlowError};
 use visioflow_core::opencv_webcam::bracket::{BracketAction, BracketConfig, BracketState};
 use visioflow_core::opencv_webcam::exposure_hal::OpenCvExposureHal;
-use visioflow_core::opencv_webcam::exposure_probe::probe_override_safe;
+use visioflow_core::opencv_webcam::exposure_probe::{bgr_mean_luma, probe_override_safe};
 use visioflow_core::opencv_webcam::exposure_table::VideoBackend;
 use visioflow_core::opencv_webcam::frame_stream::{FrameStream, OpenCvCaptureDriver};
 use visioflow_core::opencv_webcam::models::resolve_model_paths;
@@ -177,7 +177,7 @@ where
     );
 
     let bracket_config = timing.bracket_config();
-    let bracketing_enabled = resolve_bracketing_enabled(
+    let mut bracketing_enabled = resolve_bracketing_enabled(
         exposure_bracket,
         &frame_source,
         exposure,
@@ -216,6 +216,7 @@ where
         exposure.step_count(),
     );
     let mut in_override_mode = false;
+    let mut decode_in_flight = false;
 
     while window.is_open() && !window.is_key_down(Key::Escape) && Instant::now() < deadline {
         let frame = frame_source.latest_frame()?;
@@ -228,12 +229,8 @@ where
             &mut window_buffer,
         )?;
 
-        if should_attempt_decode(last_decode.elapsed(), timing.decode_interval) {
-            last_decode = Instant::now();
-            let _ = decode_worker.try_submit(frame);
-        }
-
-        if let Some(outcome) = decode_worker.try_recv() {
+        while let Some(outcome) = decode_worker.try_recv() {
+            decode_in_flight = false;
             match outcome {
                 DecodeOutcome::Success(payloads) => {
                     if verbose {
@@ -242,53 +239,33 @@ where
                     return Ok(payloads);
                 }
                 DecodeOutcome::NoPayloads if bracketing_enabled => {
-                    match bracket_state.on_primary_decode_failure(Instant::now()) {
-                        BracketAction::KeepPrimary => {}
-                        BracketAction::AdvanceExposureStep {
-                            step_index,
-                            flush_grabs,
-                        } => {
-                            if !in_override_mode {
-                                in_override_mode = true;
-                            }
-                            let max_step = exposure.step_count().saturating_sub(1);
-                            let sparse_step = (step_index.saturating_mul(2)).min(max_step);
-                            exposure.set_step(sparse_step)?;
-                            frame_source.flush_after_exposure_change(flush_grabs)?;
-                            if verbose {
-                                eprintln!(
-                                    "exposure: sparse bracket step {sparse_step}, flushed {flush_grabs} grabs"
-                                );
-                            }
-                            if sparse_step >= max_step {
-                                exposure.enable_auto_exposure()?;
-                                in_override_mode = false;
-                                bracket_state = BracketState::new(
-                                    bracket_config,
-                                    Instant::now(),
-                                    exposure.step_count(),
-                                );
-                                if verbose {
-                                    eprintln!("exposure: returning to auto/no-override mode");
-                                }
-                            }
-                        }
-                        BracketAction::Exhausted => {
-                            exposure.enable_auto_exposure()?;
-                            in_override_mode = false;
-                            bracket_state = BracketState::new(
-                                bracket_config,
-                                Instant::now(),
-                                exposure.step_count(),
+                    if let Some(disabled) = handle_decode_miss(
+                        &mut bracket_state,
+                        bracket_config,
+                        exposure,
+                        &frame_source,
+                        &decode_worker,
+                        &mut in_override_mode,
+                        &mut bracketing_enabled,
+                        verbose,
+                    )? {
+                        if disabled && verbose {
+                            eprintln!(
+                                "exposure: bracketing disabled mid-scan (runtime plunge detected)"
                             );
-                            if verbose {
-                                eprintln!("exposure: bracket exhausted, restarting in auto mode");
-                            }
                         }
                     }
                 }
                 DecodeOutcome::NoPayloads => {}
                 DecodeOutcome::Failed(error) => return Err(error),
+            }
+        }
+
+        if !decode_in_flight && should_attempt_decode(last_decode.elapsed(), timing.decode_interval)
+        {
+            if decode_worker.try_submit(frame) {
+                decode_in_flight = true;
+                last_decode = Instant::now();
             }
         }
 
@@ -304,6 +281,85 @@ where
     Err(VisioFlowError::Capture(
         "webcam preview closed before a QR code was detected".into(),
     ))
+}
+
+/// Returns `Some(true)` when bracketing was disabled due to a runtime plunge.
+fn handle_decode_miss<F>(
+    bracket_state: &mut BracketState,
+    bracket_config: BracketConfig,
+    exposure: &OpenCvExposureHal<OpenCvCaptureDriver>,
+    frame_source: &F,
+    decode_worker: &AsyncDecodeWorker,
+    in_override_mode: &mut bool,
+    bracketing_enabled: &mut bool,
+    verbose: bool,
+) -> Result<Option<bool>>
+where
+    F: LiveFrameSource,
+{
+    match bracket_state.on_primary_decode_failure(Instant::now()) {
+        BracketAction::KeepPrimary => Ok(None),
+        BracketAction::AdvanceExposureStep {
+            step_index,
+            flush_grabs,
+        } => {
+            let luma_before = bgr_mean_luma(&frame_source.latest_frame()?);
+            if !*in_override_mode {
+                *in_override_mode = true;
+            }
+            let max_step = exposure.step_count().saturating_sub(1);
+            let sparse_step = (step_index.saturating_mul(2)).min(max_step);
+            exposure.set_step(sparse_step)?;
+            frame_source.flush_after_exposure_change(flush_grabs)?;
+            decode_worker.drain_pending_outcomes();
+
+            let luma_after = bgr_mean_luma(&frame_source.latest_frame()?);
+            if luma_before >= 8.0 && luma_after < luma_before * 0.60 {
+                exposure.enable_auto_exposure()?;
+                frame_source.flush_after_exposure_change(flush_grabs)?;
+                *in_override_mode = false;
+                *bracketing_enabled = false;
+                *bracket_state = BracketState::new(
+                    bracket_config,
+                    Instant::now(),
+                    exposure.step_count(),
+                );
+                return Ok(Some(true));
+            }
+
+            if verbose {
+                eprintln!(
+                    "exposure: sparse bracket step {sparse_step}, flushed {flush_grabs} grabs"
+                );
+            }
+            if sparse_step >= max_step {
+                exposure.enable_auto_exposure()?;
+                *in_override_mode = false;
+                *bracket_state = BracketState::new(
+                    bracket_config,
+                    Instant::now(),
+                    exposure.step_count(),
+                );
+                if verbose {
+                    eprintln!("exposure: returning to auto/no-override mode");
+                }
+            }
+            Ok(None)
+        }
+        BracketAction::Exhausted => {
+            exposure.enable_auto_exposure()?;
+            *in_override_mode = false;
+            *bracket_state = BracketState::new(
+                bracket_config,
+                Instant::now(),
+                exposure.step_count(),
+            );
+            if verbose {
+                eprintln!("exposure: bracket exhausted, restarting in auto mode");
+            }
+            Ok(None)
+        }
+    }
 }
 
 fn show_frame_in_window(

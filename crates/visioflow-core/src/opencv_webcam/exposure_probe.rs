@@ -62,18 +62,40 @@ pub fn probe_override_safe<D: CaptureDriver + 'static>(
     let auto_frame = frame_source.latest_frame()?;
     let luma_auto = bgr_mean_luma(&auto_frame);
 
-    exposure.set_step(0)?;
-    frame_source.flush_after_exposure_change(flush_grabs)?;
-    let override_frame = frame_source.latest_frame()?;
-    let luma_override = bgr_mean_luma(&override_frame);
-
-    exposure.enable_auto_exposure()?;
-    frame_source.flush_after_exposure_change(PROBE_SETTLE_GRABS)?;
-
     if luma_auto < MIN_PROBE_LUMA {
+        exposure.enable_auto_exposure()?;
         return Ok(false);
     }
 
+    let max_step = exposure.step_count().saturating_sub(1);
+    let mut steps_to_test = vec![0usize];
+    if max_step > 0 {
+        steps_to_test.push(max_step);
+    }
+    for step in steps_to_test {
+        if !override_step_is_safe(frame_source, exposure, flush_grabs, luma_auto, step)? {
+            exposure.enable_auto_exposure()?;
+            frame_source.flush_after_exposure_change(PROBE_SETTLE_GRABS)?;
+            return Ok(false);
+        }
+        exposure.enable_auto_exposure()?;
+        frame_source.flush_after_exposure_change(PROBE_SETTLE_GRABS)?;
+    }
+
+    Ok(true)
+}
+
+fn override_step_is_safe<D: CaptureDriver + 'static>(
+    frame_source: &impl LiveFrameSource,
+    exposure: &OpenCvExposureHal<D>,
+    flush_grabs: u32,
+    luma_auto: f64,
+    step: usize,
+) -> Result<bool> {
+    exposure.set_step(step)?;
+    frame_source.flush_after_exposure_change(flush_grabs)?;
+    let override_frame = frame_source.latest_frame()?;
+    let luma_override = bgr_mean_luma(&override_frame);
     Ok(luma_override >= luma_auto * LUMA_DROP_RATIO)
 }
 
