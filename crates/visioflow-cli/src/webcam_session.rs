@@ -1,141 +1,150 @@
-use std::collections::HashSet;
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{mpsc, Arc};
-use std::thread;
+use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use image::{DynamicImage, ImageBuffer, Rgb};
 use minifb::{Key, Window, WindowOptions};
-use nokhwa::pixel_format::RgbFormat;
-use nokhwa::utils::{ApiBackend, CameraFormat, CameraIndex, FrameFormat, RequestedFormat, RequestedFormatType};
-use nokhwa::Camera;
-use visioflow_core::capture::decode_captured_frame_live_with_profile;
-use visioflow_core::decode::{alternating_live_decode_profile, LiveDecodeProfile, RqrrDecoder};
 use visioflow_core::error::{Result, VisioFlowError};
-use visioflow_core::traits::OpticalFilterKind;
+use visioflow_core::opencv_webcam::bracket::{BracketAction, BracketConfig, BracketState};
+use visioflow_core::opencv_webcam::exposure_hal::OpenCvExposureHal;
+use visioflow_core::opencv_webcam::exposure_table::VideoBackend;
+use visioflow_core::opencv_webcam::frame_stream::{FrameStream, OpenCvCaptureDriver};
+use visioflow_core::opencv_webcam::models::resolve_model_paths;
+use visioflow_core::opencv_webcam::wechat_decoder::WeChatCnnDecoder;
+use visioflow_core::traits::{BgrFrame, CnnQrDecoder, ExposureHal, LiveFrameSource, OpticalFilterKind};
 
-use crate::manual_exposure::adjust_manual_ev_on_arrow_keys;
-use crate::webcam_exposure::{
-    log_exposure_status, WebcamExposureController, EXPOSURE_SETTLE_FRAMES,
-};
+use crate::preview_overlay::draw_preview_status_overlay;
+use crate::commands::capture::PreviewPosition;
+use crate::screen_bounds::{apply_anchored_preview_position, primary_work_area};
 use crate::webcam_preview::{
-    downscale_rgb_to_minifb_buffer, preview_dimensions, should_attempt_decode,
-    DEFAULT_DECODE_INTERVAL, DEFAULT_PREVIEW_MAX_WIDTH, DEFAULT_WEBCAM_RESOLUTION,
+    downscale_rgb_to_minifb_buffer, preview_dimensions_from_screen, should_attempt_decode,
 };
 
 /// Default seconds to scan the webcam before timing out.
 pub const DEFAULT_WEBCAM_TIMEOUT_SECS: u64 = 20;
 
-type SharedFrame = Arc<ImageBuffer<Rgb<u8>, Vec<u8>>>;
+/// Milliseconds to wait at each exposure before advancing the bracket.
+pub const DEFAULT_EXPOSURE_STEP_MS: u64 = 250;
 
-struct DecodeJobRequest {
-    frame: SharedFrame,
-    filter: OpticalFilterKind,
-    profile: LiveDecodeProfile,
+/// Frames to discard after each exposure change so the sensor can settle.
+pub const DEFAULT_EXPOSURE_FLUSH_GRABS: u32 = 3;
+
+/// Tunable timing for webcam decode and exposure bracket cycling.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct WebcamTiming {
+    pub exposure_step: Duration,
+    pub flush_grabs: u32,
+    pub decode_interval: Duration,
+}
+
+impl WebcamTiming {
+    #[must_use]
+    pub fn from_ms(exposure_step_ms: u64, flush_grabs: u32, decode_interval_ms: u64) -> Self {
+        Self {
+            exposure_step: Duration::from_millis(exposure_step_ms.clamp(50, 2_000)),
+            flush_grabs: flush_grabs.clamp(1, 30),
+            decode_interval: crate::webcam_preview::decode_interval_from_ms(decode_interval_ms),
+        }
+    }
+
+    #[must_use]
+    pub fn defaults() -> Self {
+        Self::from_ms(
+            DEFAULT_EXPOSURE_STEP_MS,
+            DEFAULT_EXPOSURE_FLUSH_GRABS,
+            crate::webcam_preview::DEFAULT_DECODE_INTERVAL_MS,
+        )
+    }
+
+    #[must_use]
+    pub fn bracket_config(&self) -> BracketConfig {
+        BracketConfig {
+            primary_timeout: self.exposure_step,
+            flush_grabs: self.flush_grabs,
+        }
+    }
 }
 
 /// Open a live preview window, scan frames for up to `timeout_secs`, and decode the first QR found.
 pub fn capture_webcam_with_preview(
-    filter: OpticalFilterKind,
+    _filter: OpticalFilterKind,
     timeout_secs: u64,
     verbose: bool,
+    preview_position: PreviewPosition,
+    preview_scale: f32,
+    timing: WebcamTiming,
 ) -> Result<Vec<String>> {
-    let mut camera = open_webcam_camera()?;
-
-    camera.open_stream().map_err(|e| {
-        VisioFlowError::Capture(format!("failed to start webcam stream: {e}"))
-    })?;
-
-    for _ in 0..3 {
-        let _ = camera.frame();
-    }
-
-    let mut exposure = WebcamExposureController::probe(&camera, verbose);
-    log_exposure_status(&exposure, true);
-    if !exposure.is_supported() {
+    let model_paths = resolve_model_paths()?;
+    let decoder = WeChatCnnDecoder::init(&model_paths)?;
+    let stream = Arc::new(FrameStream::start(OpenCvCaptureDriver::open_default()?));
+    let backend = if cfg!(target_os = "windows") {
+        VideoBackend::Dshow
+    } else if cfg!(target_os = "linux") {
+        VideoBackend::V4l2
+    } else {
+        VideoBackend::Other
+    };
+    let exposure = OpenCvExposureHal::new(Arc::clone(&stream), backend);
+    exposure.enable_auto_exposure()?;
+    if verbose {
+        eprintln!("decode: using WeChat CNN scanner with temporal exposure bracketing");
         eprintln!(
-            "exposure: this camera may not allow exposure adjustment — try another webcam or driver"
+            "timing: exposure step {} ms, flush {} grabs, decode every {} ms",
+            timing.exposure_step.as_millis(),
+            timing.flush_grabs,
+            timing.decode_interval.as_millis(),
         );
-    } else if verbose {
-        eprintln!(
-            "exposure: mode={} — focus preview, use ↑/↓ for ±0.5 EV adjustment",
-            exposure.control_kind_label()
-        );
-        eprintln!("exposure: return to 0 EV to restore auto brightness");
     }
-
-    let result = scan_with_preview(
-        &mut camera,
-        filter,
+    scan_with_preview(
+        stream,
+        &decoder,
+        &exposure,
         timeout_secs,
         verbose,
-        &mut exposure,
-    );
-
-    exposure.restore(&mut camera);
-    camera.stop_stream().ok();
-    result
+        preview_position,
+        preview_scale,
+        timing,
+    )
 }
 
-/// Prefer uncompressed formats (no per-frame JPEG decode) at 1080p, then fall back.
-fn open_webcam_camera() -> Result<Camera> {
-    let index = CameraIndex::Index(0);
-    let (width, height) = DEFAULT_WEBCAM_RESOLUTION;
-
-    let format_candidates = [
-        FrameFormat::NV12,
-        FrameFormat::YUYV,
-        FrameFormat::RAWRGB,
-        FrameFormat::MJPEG,
-    ];
-
-    for frame_format in format_candidates {
-        let camera_format = CameraFormat::new_from(width, height, frame_format, 30);
-        let requested =
-            RequestedFormat::new::<RgbFormat>(RequestedFormatType::Closest(camera_format));
-
-        if let Ok(camera) = Camera::with_backend(index.clone(), requested, ApiBackend::MediaFoundation) {
-            return Ok(camera);
-        }
-    }
-
-    let fallback = CameraFormat::new_from(width, height, FrameFormat::MJPEG, 30);
-    let requested =
-        RequestedFormat::new::<RgbFormat>(RequestedFormatType::Closest(fallback));
-
-    Camera::with_backend(index, requested, ApiBackend::MediaFoundation).or_else(|_| {
-        let requested =
-            RequestedFormat::new::<RgbFormat>(RequestedFormatType::Closest(fallback));
-        Camera::new(CameraIndex::Index(0), requested)
-    })
-    .map_err(|e| {
-        VisioFlowError::Capture(format!("failed to open webcam at {width}x{height}: {e}"))
-    })
-}
-
-fn scan_with_preview(
-    camera: &mut Camera,
-    filter: OpticalFilterKind,
+fn scan_with_preview<F, D>(
+    frame_source: F,
+    decoder: &D,
+    exposure: &OpenCvExposureHal<OpenCvCaptureDriver>,
     timeout_secs: u64,
     verbose: bool,
-    hw_exposure: &mut WebcamExposureController,
-) -> Result<Vec<String>> {
+    preview_position: PreviewPosition,
+    preview_scale: f32,
+    timing: WebcamTiming,
+) -> Result<Vec<String>>
+where
+    F: LiveFrameSource,
+    D: CnnQrDecoder,
+{
     let deadline = Instant::now() + Duration::from_secs(timeout_secs);
-    let (result_tx, result_rx) = mpsc::channel::<Vec<String>>();
-    let decode_busy = Arc::new(AtomicBool::new(false));
+    let first = frame_source.latest_frame()?;
+    let capture_width = first.width;
+    let capture_height = first.height;
 
-    let first_rgb = read_camera_rgb(camera).ok_or_else(|| {
-        VisioFlowError::Capture("failed to read initial webcam frame".into())
-    })?;
-    let capture_width = first_rgb.width();
-    let capture_height = first_rgb.height();
-
-    let (preview_width, preview_height) =
-        preview_dimensions(capture_width, capture_height, DEFAULT_PREVIEW_MAX_WIDTH);
+    let work_area = primary_work_area().unwrap_or_else(|| {
+        let w = capture_width.max(1);
+        let h = capture_height.max(1);
+        crate::screen_bounds::ScreenBounds {
+            x: 0,
+            y: 0,
+            width: w,
+            height: h,
+        }
+    });
+    let (preview_width, preview_height) = preview_dimensions_from_screen(
+        capture_width,
+        capture_height,
+        work_area.width,
+        work_area.height,
+        preview_scale,
+    );
 
     let mut window = Window::new(
         &format!(
-            "VisioFlow Webcam ({capture_width}x{capture_height}) — ↑↓ sensor exposure"
+            "VisioFlow Webcam ({capture_width}x{capture_height}) — OpenCV WeChat Scanner"
         ),
         preview_width as usize,
         preview_height as usize,
@@ -145,70 +154,95 @@ fn scan_with_preview(
         },
     )
     .map_err(|e| VisioFlowError::Capture(format!("failed to open preview window: {e}")))?;
+    apply_anchored_preview_position(
+        &mut window,
+        &work_area,
+        preview_position,
+        preview_width,
+        preview_height,
+    );
 
     let mut window_buffer =
         Vec::with_capacity((preview_width as usize) * (preview_height as usize));
 
-    let mut manual_ev = 0.0_f32;
-    let mut keys_held = HashSet::new();
+    let bracket_config = timing.bracket_config();
     let mut last_decode = Instant::now();
-    let mut decode_attempt: u64 = 0;
-    let mut settling_until_frame: u64 = 0;
-    let mut frame_index: u64 = 0;
+    let mut bracket_state =
+        BracketState::new(bracket_config, Instant::now(), exposure.step_count());
+    let mut in_override_mode = false;
 
     while window.is_open() && !window.is_key_down(Key::Escape) && Instant::now() < deadline {
-        if let Ok(payloads) = result_rx.try_recv() {
-            return Ok(payloads);
-        }
-
-        frame_index += 1;
-
-        if adjust_manual_ev_on_arrow_keys(&window, &mut manual_ev, &mut keys_held) {
-            eprintln!("exposure: {manual_ev:+.1} EV (↑ brighter, ↓ darker) — sensor adjusting…");
-            hw_exposure.apply_manual_ev(camera, manual_ev, verbose)?;
-            settling_until_frame = frame_index + u64::from(EXPOSURE_SETTLE_FRAMES);
-            drain_camera_frames(camera, EXPOSURE_SETTLE_FRAMES);
-        }
-
-        let Some(rgb) = read_camera_rgb(camera) else {
-            window.update();
-            continue;
-        };
-
-        let shared = Arc::new(rgb);
+        let frame = frame_source.latest_frame()?;
         show_frame_in_window(
-            &shared,
+            &frame,
             preview_width,
             preview_height,
             &mut window,
             &mut window_buffer,
         )?;
 
-        let exposure_settled = frame_index >= settling_until_frame;
-
-        if exposure_settled
-            && should_attempt_decode(last_decode.elapsed(), DEFAULT_DECODE_INTERVAL)
-            && !decode_busy.load(Ordering::Relaxed)
-        {
+        if should_attempt_decode(last_decode.elapsed(), timing.decode_interval) {
             last_decode = Instant::now();
-            decode_attempt += 1;
-            let profile = alternating_live_decode_profile(decode_attempt);
-            spawn_decode_job(
-                DecodeJobRequest {
-                    frame: shared,
-                    filter,
-                    profile,
-                },
-                Arc::clone(&decode_busy),
-                &result_tx,
-            );
+            match decoder.decode_bgr(&frame) {
+                Ok(payloads) if !payloads.is_empty() => {
+                    if verbose {
+                        eprintln!("decode: wechat hit");
+                    }
+                    return Ok(payloads);
+                }
+                Ok(_) | Err(VisioFlowError::NoPayloads) => {
+                    match bracket_state.on_primary_decode_failure(Instant::now()) {
+                        BracketAction::KeepPrimary => {}
+                        BracketAction::AdvanceExposureStep {
+                            step_index,
+                            flush_grabs,
+                        } => {
+                            // Strategy: alternate quickly between no-override and sparse override steps.
+                            // We skip every other step so we return to auto mode faster.
+                            if !in_override_mode {
+                                in_override_mode = true;
+                            }
+                            let max_step = exposure.step_count().saturating_sub(1);
+                            let sparse_step = (step_index.saturating_mul(2)).min(max_step);
+                            exposure.set_step(sparse_step)?;
+                            frame_source.flush_after_exposure_change(flush_grabs)?;
+                            if verbose {
+                                eprintln!(
+                                    "exposure: sparse bracket step {sparse_step}, flushed {flush_grabs} grabs"
+                                );
+                            }
+                            if sparse_step >= max_step {
+                                exposure.enable_auto_exposure()?;
+                                in_override_mode = false;
+                                bracket_state = BracketState::new(
+                                    bracket_config,
+                                    Instant::now(),
+                                    exposure.step_count(),
+                                );
+                                if verbose {
+                                    eprintln!("exposure: returning to auto/no-override mode");
+                                }
+                            }
+                        }
+                        BracketAction::Exhausted => {
+                            exposure.enable_auto_exposure()?;
+                            in_override_mode = false;
+                            bracket_state = BracketState::new(
+                                bracket_config,
+                                Instant::now(),
+                                exposure.step_count(),
+                            );
+                            if verbose {
+                                eprintln!("exposure: bracket exhausted, restarting in auto mode");
+                            }
+                        }
+                    }
+                }
+                Err(error) => return Err(error),
+            }
         }
 
         window.update();
-    }
-
-    if let Ok(payloads) = result_rx.try_recv() {
-        return Ok(payloads);
     }
 
     if Instant::now() >= deadline {
@@ -222,83 +256,37 @@ fn scan_with_preview(
     ))
 }
 
-fn drain_camera_frames(camera: &mut Camera, count: u32) {
-    for _ in 0..count {
-        let _ = camera.frame();
-    }
-}
-
 fn show_frame_in_window(
-    frame: &SharedFrame,
+    frame: &BgrFrame,
     preview_width: u32,
     preview_height: u32,
     window: &mut Window,
     buffer: &mut Vec<u32>,
 ) -> Result<()> {
+    let rgb = bgr_to_rgb(frame);
     downscale_rgb_to_minifb_buffer(
-        frame.as_raw(),
-        frame.width(),
-        frame.height(),
+        &rgb,
+        frame.width,
+        frame.height,
         preview_width,
         preview_height,
         buffer,
     );
+    draw_preview_status_overlay(buffer, preview_width, preview_height);
     window
         .update_with_buffer(buffer, preview_width as usize, preview_height as usize)
         .map_err(|e| VisioFlowError::Capture(format!("failed to update preview window: {e}")))?;
     Ok(())
 }
 
-fn spawn_decode_job(
-    request: DecodeJobRequest,
-    decode_busy: Arc<AtomicBool>,
-    result_tx: &mpsc::Sender<Vec<String>>,
-) {
-    if decode_busy
-        .compare_exchange(false, true, Ordering::Acquire, Ordering::Relaxed)
-        .is_err()
-    {
-        return;
+fn bgr_to_rgb(frame: &BgrFrame) -> Vec<u8> {
+    let mut rgb = Vec::with_capacity(frame.data.len());
+    for chunk in frame.data.chunks_exact(3) {
+        rgb.push(chunk[2]);
+        rgb.push(chunk[1]);
+        rgb.push(chunk[0]);
     }
-
-    let result_tx = result_tx.clone();
-    thread::spawn(move || {
-        let _guard = DecodeBusyGuard(decode_busy);
-        if let Ok(Some(payloads)) = try_decode(&request) {
-            let _ = result_tx.send(payloads);
-        }
-    });
-}
-
-struct DecodeBusyGuard(Arc<AtomicBool>);
-
-impl Drop for DecodeBusyGuard {
-    fn drop(&mut self) {
-        self.0.store(false, Ordering::Release);
-    }
-}
-
-fn read_camera_rgb(camera: &mut Camera) -> Option<ImageBuffer<Rgb<u8>, Vec<u8>>> {
-    camera
-        .frame()
-        .ok()?
-        .decode_image::<RgbFormat>()
-        .ok()
-}
-
-fn try_decode(request: &DecodeJobRequest) -> Result<Option<Vec<String>>> {
-    let decoder = RqrrDecoder;
-    let frame = DynamicImage::ImageRgb8(request.frame.as_ref().clone());
-    match decode_captured_frame_live_with_profile(
-        &frame,
-        request.filter,
-        &decoder,
-        request.profile,
-    ) {
-        Ok(payloads) => Ok(Some(payloads)),
-        Err(VisioFlowError::NoPayloads) => Ok(None),
-        Err(error) => Err(error),
-    }
+    rgb
 }
 
 #[cfg(test)]
@@ -308,5 +296,30 @@ mod tests {
     #[test]
     fn default_webcam_timeout_is_twenty_seconds() {
         assert_eq!(DEFAULT_WEBCAM_TIMEOUT_SECS, 20);
+    }
+
+    #[test]
+    fn webcam_timing_defaults_are_faster_than_legacy_bracket() {
+        let timing = WebcamTiming::defaults();
+        assert_eq!(timing.exposure_step, Duration::from_millis(250));
+        assert_eq!(timing.flush_grabs, 3);
+        assert_eq!(timing.decode_interval, Duration::from_millis(250));
+        let bracket = timing.bracket_config();
+        assert_eq!(bracket.primary_timeout, Duration::from_millis(250));
+        assert_eq!(bracket.flush_grabs, 3);
+    }
+
+    #[test]
+    fn webcam_timing_clamps_out_of_range_values() {
+        let timing = WebcamTiming::from_ms(10, 0, 5_000);
+        assert_eq!(timing.exposure_step, Duration::from_millis(50));
+        assert_eq!(timing.flush_grabs, 1);
+        assert_eq!(timing.decode_interval, Duration::from_millis(2_000));
+    }
+
+    #[test]
+    fn bgr_to_rgb_swaps_channels() {
+        let frame = BgrFrame::new(1, 1, vec![1, 2, 3]);
+        assert_eq!(bgr_to_rgb(&frame), vec![3, 2, 1]);
     }
 }

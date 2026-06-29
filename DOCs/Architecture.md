@@ -4,13 +4,14 @@
 VisioFlow is an "Optical Automation Engine" and "Visual Payload Router." It bridges the gap between physical visual data (QR/barcodes) and desktop environments. It allows sysadmins and developers to capture payloads via webcam or screen-snip, parse them, map the data to ephemeral environment variables, and trigger native OS executions.
 
 ## 2. Technology Stack & Constraints
-* **Backend:** Rust (Native, Zero-bloat).
+* **Backend:** Rust (native core; OpenCV used for live webcam capture/decode only).
 * **Frontend/Daemon:** Tauri (Headless mode for the background daemon).
 * **Cross-Platform:** Windows and Linux (macOS is explicitly out of scope).
 * **Strict Constraints:**
-  * **Zero Bloat:** Do not use heavy C++ bindings or massive frameworks like OpenCV unless absolutely necessary. Rely on native Rust crates (e.g., pure Rust ports for QR decoding, native image processing crates).
+  * **Zero Bloat (static capture):** Snip and file capture remain native Rust (`rqrr`, Otsu/Median preprocessing).
+  * **Webcam Optical Engine:** Live webcam capture uses OpenCV `VideoCapture` with a spin-thread `grab()` loop, WeChat CNN decoding, and temporal exposure bracketing. See [`DOCs/Rust OpenCV QR Scanning Architecture.md`](Rust%20OpenCV%20QR%20Scanning%20Architecture.md).
   * **IPC:** The CLI and the background Daemon MUST communicate via Local Sockets (Unix Domain Sockets on Linux, Named Pipes on Windows). Do not use file polling.
-  * **Optical Pre-processing:** Implement Otsu's threshold method natively in Rust before passing webcam frames to the decoder.
+  * **Optical Pre-processing (static):** Implement Otsu's threshold method natively in Rust before passing snip/file frames to the decoder.
 
 ## 3. CLI Architecture (The "Noun-Verb" Paradigm)
 The CLI must follow this exact structure using the `clap` crate:

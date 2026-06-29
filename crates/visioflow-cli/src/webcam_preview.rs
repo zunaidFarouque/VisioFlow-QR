@@ -4,12 +4,21 @@ use std::time::Duration;
 
 /// Default maximum width of the live preview window in pixels (display only).
 pub const DEFAULT_PREVIEW_MAX_WIDTH: u32 = 640;
+pub const DEFAULT_PREVIEW_SCALE: f32 = 0.12;
+pub const MIN_PREVIEW_HEIGHT: u32 = 200;
 
 /// Target webcam capture resolution — full sensor quality for QR decode.
 pub const DEFAULT_WEBCAM_RESOLUTION: (u32, u32) = (1920, 1080);
 
 /// Minimum interval between QR decode attempts on the capture thread.
-pub const DEFAULT_DECODE_INTERVAL: Duration = Duration::from_millis(350);
+pub const DEFAULT_DECODE_INTERVAL_MS: u64 = 250;
+pub const DEFAULT_DECODE_INTERVAL: Duration = Duration::from_millis(DEFAULT_DECODE_INTERVAL_MS);
+
+/// Clamp decode interval to a sane range for live webcam scanning.
+#[must_use]
+pub fn decode_interval_from_ms(ms: u64) -> Duration {
+    Duration::from_millis(ms.clamp(50, 2_000))
+}
 
 /// Returns true when a decode attempt is due based on the elapsed time since the last one.
 pub fn should_attempt_decode(elapsed: Duration, interval: Duration) -> bool {
@@ -28,6 +37,47 @@ pub fn preview_dimensions(width: u32, height: u32, max_width: u32) -> (u32, u32)
     let scale = max_width as f64 / width as f64;
     let preview_width = max_width;
     let preview_height = (height as f64 * scale).round().max(1.0) as u32;
+    (preview_width, preview_height)
+}
+
+#[must_use]
+pub fn clamp_preview_scale(scale: f32) -> f32 {
+    if !scale.is_finite() {
+        return DEFAULT_PREVIEW_SCALE;
+    }
+    scale.clamp(0.05, 1.0)
+}
+
+/// Compute preview dimensions from screen size and capture aspect ratio.
+#[must_use]
+pub fn preview_dimensions_from_screen(
+    capture_width: u32,
+    capture_height: u32,
+    screen_width: u32,
+    screen_height: u32,
+    scale: f32,
+) -> (u32, u32) {
+    if capture_width == 0 || capture_height == 0 || screen_width == 0 || screen_height == 0 {
+        return (1, 1);
+    }
+
+    let clamped = clamp_preview_scale(scale);
+    let target_height = ((screen_height as f32 * clamped).round() as u32).max(MIN_PREVIEW_HEIGHT);
+    let mut preview_height = target_height.min(screen_height);
+    if preview_height == 0 {
+        preview_height = 1;
+    }
+
+    let mut preview_width =
+        ((preview_height as f64 * capture_width as f64) / capture_height as f64).round() as u32;
+    preview_width = preview_width.max(1).min(screen_width);
+
+    if preview_width == screen_width {
+        preview_height = ((preview_width as f64 * capture_height as f64) / capture_width as f64)
+            .round() as u32;
+        preview_height = preview_height.max(1).min(screen_height);
+    }
+
     (preview_width, preview_height)
 }
 
@@ -129,13 +179,25 @@ mod tests {
 
     #[test]
     fn should_attempt_decode_after_interval_elapses() {
-        assert!(should_attempt_decode(
-            Duration::from_millis(350),
-            Duration::from_millis(350)
-        ));
+        let interval = decode_interval_from_ms(DEFAULT_DECODE_INTERVAL_MS);
+        assert!(should_attempt_decode(interval, interval));
         assert!(!should_attempt_decode(
             Duration::from_millis(50),
-            Duration::from_millis(350)
+            interval
         ));
+    }
+
+    #[test]
+    fn preview_dimensions_from_screen_honors_min_height() {
+        let (w, h) = preview_dimensions_from_screen(1920, 1080, 1920, 900, 0.1);
+        assert!(h >= MIN_PREVIEW_HEIGHT);
+        assert!(w > h);
+    }
+
+    #[test]
+    fn preview_dimensions_from_screen_preserves_aspect() {
+        let (w, h) = preview_dimensions_from_screen(1920, 1080, 1920, 1080, 0.25);
+        let ratio = w as f64 / h as f64;
+        assert!((ratio - (1920.0 / 1080.0)).abs() < 0.02);
     }
 }

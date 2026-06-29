@@ -5,7 +5,7 @@ use visioflow_core::error::Result;
 use visioflow_core::traits::{FrameSource, OpticalFilterKind};
 
 use crate::capture::{FileFrameSource, SnipFrameSource};
-use crate::webcam_session::{capture_webcam_with_preview, DEFAULT_WEBCAM_TIMEOUT_SECS};
+use crate::webcam_session::{capture_webcam_with_preview, WebcamTiming, DEFAULT_WEBCAM_TIMEOUT_SECS};
 
 #[derive(Debug, Clone, Copy, ValueEnum)]
 pub enum CaptureSource {
@@ -26,6 +26,20 @@ pub enum CaptureAction {
     Copy,
 }
 
+#[derive(Debug, Clone, Copy, ValueEnum, Default)]
+pub enum PreviewPosition {
+    TopLeft,
+    TopCenter,
+    TopRight,
+    CenterLeft,
+    Center,
+    CenterRight,
+    BottomLeft,
+    #[default]
+    BottomCenter,
+    BottomRight,
+}
+
 #[derive(Debug, Clone)]
 pub struct CaptureArgs {
     pub source: CaptureSource,
@@ -34,6 +48,11 @@ pub struct CaptureArgs {
     pub input_image: Option<std::path::PathBuf>,
     pub timeout_secs: u64,
     pub verbose: bool,
+    pub preview_position: PreviewPosition,
+    pub preview_scale: f32,
+    pub exposure_step_ms: u64,
+    pub exposure_flush_grabs: u32,
+    pub decode_interval_ms: u64,
 }
 
 impl CaptureArgs {
@@ -73,6 +92,13 @@ pub fn run_capture(args: CaptureArgs) -> Result<Vec<String>> {
             filter,
             CaptureArgs::timeout_secs_or_default(args.timeout_secs),
             args.verbose,
+            args.preview_position,
+            args.preview_scale,
+            WebcamTiming::from_ms(
+                args.exposure_step_ms,
+                args.exposure_flush_grabs,
+                args.decode_interval_ms,
+            ),
         ),
     }
 }
