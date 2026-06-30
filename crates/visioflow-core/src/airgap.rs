@@ -23,6 +23,9 @@ pub fn enforce_airgap_policy(disable_telemetry: bool) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::Mutex;
+
+    static ENV_LOCK: Mutex<()> = Mutex::new(());
 
     #[test]
     fn airgap_active_when_disable_telemetry_flag_set() {
@@ -31,12 +34,14 @@ mod tests {
 
     #[test]
     fn airgap_inactive_without_flag_or_env() {
+        let _lock = ENV_LOCK.lock().expect("env lock");
         let _guard = EnvGuard::unset("VISIOFLOW_AIRGAP");
         assert!(!airgap_active(false));
     }
 
     #[test]
     fn airgap_active_when_env_var_is_one() {
+        let _lock = ENV_LOCK.lock().expect("env lock");
         let _guard = EnvGuard::set("VISIOFLOW_AIRGAP", "1");
         assert!(airgap_active(false));
     }
@@ -49,6 +54,7 @@ mod tests {
 
     #[test]
     fn enforce_airgap_policy_ok_when_not_airgapped() {
+        let _lock = ENV_LOCK.lock().expect("env lock");
         let _guard = EnvGuard::unset("VISIOFLOW_AIRGAP");
         enforce_airgap_policy(false).expect("should allow startup");
     }

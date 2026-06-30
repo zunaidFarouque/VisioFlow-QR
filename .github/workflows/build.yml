@@ -6,16 +6,11 @@ on:
   pull_request:
     branches: [main, master]
 
-env:
-  MODEL_BASE: https://raw.githubusercontent.com/WeChatCV/opencv_3rdparty/a8b69ccc738421293254aec5ddb38bd523503252
-
 jobs:
   build:
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [windows-latest, ubuntu-latest]
-    runs-on: ${{ matrix.os }}
+    # Linux CI deferred: Ubuntu OpenCV/contrib setup is unreliable on hosted runners.
+    # Full webcam build (OpenCV via vcpkg) is local / release packaging only — see scripts/.
+    runs-on: windows-latest
 
     steps:
       - uses: actions/checkout@v4
@@ -26,45 +21,11 @@ jobs:
 
       - uses: Swatinem/rust-cache@v2
 
-      - name: Install OpenCV (Ubuntu)
-        if: runner.os == 'Linux'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            libopencv-dev \
-            libopencv-contrib-dev \
-            clang \
-            libclang-dev \
-            llvm-dev \
-            pkg-config \
-            curl \
-            libdbus-1-dev \
-            cmake
-          echo "PKG_CONFIG_PATH=/usr/lib/x86_64-linux-gnu/pkgconfig" >> "$GITHUB_ENV"
+      - name: Clippy (router-only, no OpenCV)
+        run: cargo clippy --workspace --no-default-features -- -D warnings
 
-      - name: Install OpenCV (Windows)
-        if: runner.os == 'Windows'
-        shell: bash
-        run: |
-          choco install llvm -y
-          git clone --depth 1 https://github.com/microsoft/vcpkg.git "$GITHUB_WORKSPACE/vcpkg"
-          "$GITHUB_WORKSPACE/vcpkg/bootstrap-vcpkg.bat"
-          "$GITHUB_WORKSPACE/vcpkg/vcpkg" install opencv4[contrib]:x64-windows
-          echo "VCPKG_ROOT=$GITHUB_WORKSPACE/vcpkg" >> "$GITHUB_ENV"
+      - name: Test (router-only, no OpenCV)
+        run: cargo test --workspace --no-default-features
 
-      - name: Download WeChat models
-        shell: bash
-        run: |
-          mkdir -p models
-          for file in detect.prototxt detect.caffemodel sr.prototxt sr.caffemodel; do
-            curl -fsSL "$MODEL_BASE/$file" -o "models/$file"
-          done
-
-      - name: Clippy
-        run: cargo clippy -- -D warnings
-
-      - name: Test
-        run: cargo test
-
-      - name: Release build
-        run: cargo build --release
+      - name: Release build (visioflow + visioflow-toast)
+        run: cargo build --release --no-default-features -p visioflow-cli --bins

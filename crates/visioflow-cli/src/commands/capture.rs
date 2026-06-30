@@ -507,13 +507,13 @@ pub fn apply_routing_after_halts(
                 silent,
                 true,
             );
-            write_capture_output(&[payload.clone()], CaptureAction::Copy, true)?;
+            write_capture_output(std::slice::from_ref(payload), CaptureAction::Copy, true)?;
             return Ok(RoutingApplyResult::CopiedPayload {
                 event: RoutingEvent::BuiltinCopy,
             });
         }
         RouteMode::BuiltinPlain => {
-            write_capture_output(&[payload.clone()], CaptureAction::Stdout, silent)?;
+            write_capture_output(std::slice::from_ref(payload), CaptureAction::Stdout, silent)?;
             return Ok(RoutingApplyResult::PrintedPayload(payload.clone()));
         }
         _ => {}
@@ -547,7 +547,7 @@ pub fn apply_routing_after_halts(
                 );
             }
             emit_routing_notification(notify, &event, payload, verbose, silent, true);
-            write_capture_output(&[payload.clone()], CaptureAction::Copy, true)?;
+            write_capture_output(std::slice::from_ref(payload), CaptureAction::Copy, true)?;
             return Ok(RoutingApplyResult::CopiedPayload { event });
         }
 
@@ -582,7 +582,7 @@ pub fn apply_routing_after_halts(
                 eprintln!("{}", format_capture_routing_message(&event, true));
             }
             emit_routing_notification(notify, &event, payload, verbose, silent, true);
-            write_capture_output(&[payload.clone()], CaptureAction::Copy, true)?;
+            write_capture_output(std::slice::from_ref(payload), CaptureAction::Copy, true)?;
             Ok(RoutingApplyResult::CopiedPayload { event })
         }
         OnMismatch::None => {
