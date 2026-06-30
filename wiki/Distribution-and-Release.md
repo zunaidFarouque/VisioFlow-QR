@@ -103,7 +103,7 @@ If all pass, the distribution and install scripts are in a releasable state.
   "architecture": {
     "64bit": {
       "url": "https://github.com/zunaidFarouque/VisioFlow-QR/releases/download/v0.1.3/visioflow-win-x64.zip",
-      "hash": "sha256:<hash from build-release.ps1>",
+      "hash": "sha256:2b538059bf1faeb3ed0e98452883162a50173416eb12d0562080357431db9c0b",
       "extract_dir": "visioflow-win-x64"
     }
   }
