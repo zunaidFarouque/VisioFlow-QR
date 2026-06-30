@@ -20,8 +20,8 @@ Bucket: [Zunaid-Scoop-Bucket](https://github.com/zunaidFarouque/Zunaid-Scoop-Buc
 `scoop install` runs bootstrap automatically — shortcuts, rules seed, and sync to `%APPDATA%\visioflow\rules.json`. User rules persist under `~/scoop/persist/visioflow/data/` across upgrades.
 
 ```powershell
-scoop bucket add zunaid-scoop-bucket https://github.com/zunaidFarouque/Zunaid-Scoop-Bucket
-scoop install zunaid-scoop-bucket/visioflow
+scoop bucket add Zuanid-Scoop https://github.com/zunaidFarouque/Zunaid-Scoop-Bucket
+scoop install Zuanid-Scoop/visioflow
 ```
 
 **Uninstall:** removes Desktop/Start Menu shortcuts and `%APPDATA%\VisioFlow\launchers`. Rules stay in Scoop persist unless you run `scoop uninstall -p visioflow`. The `visioflow:` toast protocol registry in HKCU is left in place (refreshed on the next `visioflow notify test`).
@@ -47,7 +47,7 @@ cd D:\tools\visioflow-win-x64
 powershell -ExecutionPolicy Bypass -File .\bootstrap-portable.ps1 -DistRoot . -Force
 ```
 
-**Official release:** [v0.1.0 — visioflow-win-x64.zip](https://github.com/zunaidFarouque/VisioFlow-QR/releases/download/v0.1.0/visioflow-win-x64.zip)
+**Official release:** [v0.1.1 — visioflow-win-x64.zip](https://github.com/zunaidFarouque/VisioFlow-QR/releases/download/v0.1.1/visioflow-win-x64.zip)
 
 See [[Distribution-and-Release]] for building and publishing release zips.
 

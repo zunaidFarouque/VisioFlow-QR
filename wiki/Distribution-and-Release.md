@@ -59,7 +59,7 @@ cargo build --release -p visioflow-cli
 ## Publish checklist
 
 1. Run `.\scripts\build-release.ps1` and note the printed SHA256.
-2. Upload `dist/visioflow-win-x64.zip` to a GitHub release tag (e.g. [v0.1.0](https://github.com/zunaidFarouque/VisioFlow-QR/releases/tag/v0.1.0)).
+2. Upload `dist/visioflow-win-x64.zip` to a GitHub release tag (e.g. [v0.1.1](https://github.com/zunaidFarouque/VisioFlow-QR/releases/tag/v0.1.1)).
 3. Update `scripts/packaging/scoop/visioflow.json`:
    - `version`
    - `architecture.64bit.url` (release download URL)
@@ -73,7 +73,7 @@ Scoop manifest path: `scripts/packaging/scoop/visioflow.json`
 Current release URL:
 
 ```
-https://github.com/zunaidFarouque/VisioFlow-QR/releases/download/v0.1.0/visioflow-win-x64.zip
+https://github.com/zunaidFarouque/VisioFlow-QR/releases/download/v0.1.1/visioflow-win-x64.zip
 ```
 
 ---
@@ -95,11 +95,11 @@ If all pass, the distribution and install scripts are in a releasable state.
 
 ```json
 {
-  "version": "0.1.0",
+  "version": "0.1.1",
   "architecture": {
     "64bit": {
-      "url": "https://github.com/zunaidFarouque/VisioFlow-QR/releases/download/v0.1.0/visioflow-win-x64.zip",
-      "hash": "sha256:aac65efc3bc0afea6478be3b1a2ba65ddc89664a534e1383e1bab599fd704b93",
+      "url": "https://github.com/zunaidFarouque/VisioFlow-QR/releases/download/v0.1.1/visioflow-win-x64.zip",
+      "hash": "sha256:7e63c498d406c1dc1d57191444c585f99bf20bf9c45b717c78e3691adaf04032",
       "extract_dir": "visioflow-win-x64"
     }
   }

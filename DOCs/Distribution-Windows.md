@@ -46,7 +46,7 @@ cargo build --release -p visioflow-cli
 ## Publish checklist
 
 1. Run `.\scripts\build-release.ps1` and note the printed SHA256.
-2. Upload `dist/visioflow-win-x64.zip` to a GitHub release tag (e.g. `v0.1.0`).
+2. Upload `dist/visioflow-win-x64.zip` to a GitHub release tag (e.g. `v0.1.1`).
 3. Update `scripts/packaging/scoop/visioflow.json`:
    - `version`
    - `architecture.64bit.url` (release download URL)

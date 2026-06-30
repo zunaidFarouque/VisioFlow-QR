@@ -2,13 +2,13 @@
 
 Canonical manifest lives here: `scripts/packaging/scoop/visioflow.json`
 
-Published in the personal bucket: [Zunaid-Scoop-Bucket](https://github.com/zunaidFarouque/Zunaid-Scoop-Bucket) (`bucket/visioflow.json`).
+Published in [Zunaid-Scoop-Bucket](https://github.com/zunaidFarouque/Zunaid-Scoop-Bucket) (`bucket/visioflow.json`). Register the bucket locally as **`Zuanid-Scoop`**:
 
 End users:
 
 ```powershell
-scoop bucket add zunaid-scoop-bucket https://github.com/zunaidFarouque/Zunaid-Scoop-Bucket
-scoop install zunaid-scoop-bucket/visioflow
+scoop bucket add Zuanid-Scoop https://github.com/zunaidFarouque/Zunaid-Scoop-Bucket
+scoop install Zuanid-Scoop/visioflow
 ```
 
 `post_install` seeds rules, syncs them to `%APPDATA%\visioflow\rules.json`, and runs `install-shortcuts.ps1` from the release zip. No manual bootstrap step.
