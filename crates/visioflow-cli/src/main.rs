@@ -148,9 +148,9 @@ enum Commands {
         #[arg(long, value_enum, default_value = "open-settings")]
         wifi_handoff: WifiHandoffMode,
 
-        /// Desktop notifications for routing outcomes
-        #[arg(long, default_value_t = false)]
-        notify: bool,
+        /// Disable desktop notifications for routing outcomes (enabled by default)
+        #[arg(long)]
+        no_notify: bool,
 
         /// Interactive list when multiple payloads are decoded
         #[arg(long)]
@@ -508,7 +508,7 @@ fn run() -> visioflow_core::error::Result<()> {
             only,
             on_mismatch,
             wifi_handoff,
-            notify,
+            no_notify,
             select,
             interactive,
             store: rule_store,
@@ -532,7 +532,7 @@ fn run() -> visioflow_core::error::Result<()> {
                 only: only.clone(),
                 on_mismatch,
                 wifi_handoff,
-                notify,
+                notify: !no_notify,
                 rule_store: rule_store.clone(),
                 select,
                 interactive,
@@ -593,10 +593,10 @@ fn run() -> visioflow_core::error::Result<()> {
                             "no payloads decoded for routing".into(),
                         )
                     })?;
-                    let notify_mode = if notify {
-                        CaptureNotify::On
-                    } else {
+                    let notify_mode = if no_notify {
                         CaptureNotify::Off
+                    } else {
+                        CaptureNotify::On
                     };
                     notify_routing_outcome(
                         notify_mode,
@@ -618,10 +618,10 @@ fn run() -> visioflow_core::error::Result<()> {
                         write_resolved_output(&vars, RuleOutputFormat::Plain, cli.silent)?;
                     }
                 } else {
-                    let notify_mode = if notify {
-                        CaptureNotify::On
-                    } else {
+                    let notify_mode = if no_notify {
                         CaptureNotify::Off
+                    } else {
+                        CaptureNotify::On
                     };
                     let result = apply_routing_after_halts(
                         &store,
@@ -852,7 +852,7 @@ mod tests {
             "none",
             "--wifi-handoff",
             "print",
-            "--notify",
+            "--no-notify",
         ])
         .expect("cli should parse");
 
@@ -864,7 +864,7 @@ mod tests {
                 only,
                 on_mismatch,
                 wifi_handoff,
-                notify,
+                no_notify,
                 ..
             } => {
                 assert!(action.is_none());
@@ -873,7 +873,7 @@ mod tests {
                 assert_eq!(only, vec!["url"]);
                 assert!(matches!(on_mismatch, OnMismatch::None));
                 assert!(matches!(wifi_handoff, WifiHandoffMode::Print));
-                assert!(notify);
+                assert!(no_notify);
             }
             Commands::Rule { .. } | Commands::Daemon { .. } | Commands::Notify { .. } => {
                 panic!("expected capture")
@@ -882,12 +882,12 @@ mod tests {
     }
 
     #[test]
-    fn capture_notify_defaults_to_false() {
+    fn capture_notify_defaults_to_on() {
         let cli = Cli::try_parse_from(["visioflow", "capture", "--source", "snip"])
             .expect("cli should parse");
 
         match cli.command {
-            Commands::Capture { notify, .. } => assert!(!notify),
+            Commands::Capture { no_notify, .. } => assert!(!no_notify),
             Commands::Rule { .. } | Commands::Daemon { .. } | Commands::Notify { .. } => {
                 panic!("expected capture")
             }
@@ -895,14 +895,14 @@ mod tests {
     }
 
     #[test]
-    fn capture_help_mentions_notify_flag() {
+    fn capture_help_mentions_no_notify_flag() {
         let mut root = Cli::command();
         let help = root
             .find_subcommand_mut("capture")
             .expect("capture command")
             .render_help()
             .to_string();
-        assert!(help.contains("--notify"));
+        assert!(help.contains("--no-notify"));
     }
 
     #[test]

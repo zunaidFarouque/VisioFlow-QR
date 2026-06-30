@@ -1,7 +1,8 @@
 # VisioFlow IPC Protocol
 
-> **Phase D foundation.** Wire format and message types for CLI ↔ daemon communication.
-> Transport (Named Pipes on Windows, Unix domain sockets on Linux) is implemented in a later phase using `interprocess::local_socket` per [`PLATFORM_CI.md`](PLATFORM_CI.md).
+> **Phase D foundation.** Wire format and message types for CLI ↔ daemon communication.  
+> User-oriented guide: [`Daemon-and-IPC.md`](Daemon-and-IPC.md).  
+> Transport (Named Pipes on Windows, Unix domain sockets on Linux) is implemented via `interprocess::local_socket` per [`PLATFORM_CI.md`](PLATFORM_CI.md).
 
 ## Transport framing
 

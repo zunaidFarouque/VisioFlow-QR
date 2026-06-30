@@ -1,8 +1,8 @@
 # VisioFlow: Routing, Default Rules & UX Architecture
 
-> **Status:** **v2 routing implemented** in core + CLI (auto-route, builtins, default rule pack, `init-defaults`, mismatch copy fallback, and `--notify` desktop toasts on Windows). Daemon IPC `execute_rule` remains explicit-name on the wire; capture auto-route parity is achieved client-side by resolving the matched rule with core `route_payload` then executing that rule via IPC — see §10.
+> **Status:** **v2 routing implemented** in core + CLI (auto-route, builtins, default rule pack, `init-defaults`, mismatch copy fallback, and Windows desktop toasts **on by default** via `--no-notify` to disable). Daemon IPC `execute_rule` remains explicit-name on the wire; capture auto-route parity is achieved client-side by resolving the matched rule with core `route_payload` then executing that rule via IPC — see §10.
 >
-> **Audience:** AI agents and human implementers. Read with [`ENGINE_RULES.md`](ENGINE_RULES.md), [`Architecture.md`](Architecture.md), [`USER_GUIDE.md`](USER_GUIDE.md).
+> **Audience:** AI agents and human implementers. Read with [`ENGINE_RULES.md`](ENGINE_RULES.md), [`Architecture.md`](Architecture.md), [`Getting-Started.md`](Getting-Started.md).
 
 ---
 
@@ -146,7 +146,7 @@ Decode success + routing failure must still expose `QR_RAW` to fallback copy.
 
 ## 7. Notifications and feedback (implemented)
 
-When not `--silent`, emit clear stderr lines. On Windows, `capture --notify` also emits native toast notifications.
+When not `--silent`, emit clear stderr lines. On Windows, capture emits native toast notifications **by default**; pass `--no-notify` to disable.
 
 | Event | Example message |
 |-------|-----------------|
@@ -155,13 +155,14 @@ When not `--silent`, emit clear stderr lines. On Windows, `capture --notify` als
 | Explicit mismatch | `visioflow: rule "asset" did not match; copied payload to clipboard` |
 | Auto no match | `visioflow: no auto rule matched; copied payload to clipboard` |
 | Copy builtin | `visioflow: copy-only mode` |
-| WiFi connect | `visioflow: connecting to WiFi (rule "wifi")` |
+| WiFi connect (`wifi_connect: true`) | `visioflow: connecting to WiFi (rule "wifi")` |
 
-`--notify` values:
+| CLI | Effect |
+|-----|--------|
+| *(default)* | Desktop toasts for routing outcomes (matches, mismatches, no auto match, copy builtin) |
+| `--no-notify` | Stderr only; no desktop toast side-channel |
 
-- `off` — no desktop notification side-channel.
-- `errors-only` (default) — notify on explicit mismatch, no auto match, and WiFi connect failures.
-- `on` — notify on all routed outcomes, including successful matches.
+Full Windows toast guide: [`Notifications-Windows.md`](Notifications-Windows.md).
 
 If desktop notifications are unavailable, capture/routing still succeeds; a short stderr note is printed only in `--verbose` mode.
 
@@ -190,15 +191,17 @@ Sensitive values remain redacted per [`ENGINE_RULES.md`](ENGINE_RULES.md).
 
 | Rule | priority | auto_compatible | Match | Action |
 |------|----------|-----------------|-------|--------|
-| `wifi` | 5 | yes | Native `WIFI:` / `QR_NATIVE_WIFI_*` | `wifi_connect: true` |
+| `wifi` | 5 | yes | `^WIFI:` | exec: `wifi-handoff` (Settings UI; not silent netsh join) |
 | `url` | 10 | yes | `^https?://\S+$` | exec: open browser (`QR_RAW` or URI vars) |
 | `mailto` | 15 | yes | `^mailto:` | exec: open mail handler |
 | `tel` | 16 | yes | `^tel:` | exec: open dialer |
 | `geo` | 17 | yes | `^geo:` | exec: open maps URL |
-| `vcard` | 18 | yes | `BEGIN:VCARD` | exec: copy contact fields or open `.vcf` |
+| `vcard` | 18 | yes | `BEGIN:VCARD` | exec: copy contact text |
+| `event` | 19 | yes | `BEGIN:VEVENT` | exec: copy calendar text |
 | `clipboard` | 20 | yes | `^(?i)(?:clipboard\|clip):(?P<text>.+)$` | exec: copy `QR_VAR_TEXT` |
+| `matmsg` | 21 | yes | `^MATMSG:` | exec: parse MATMSG → `mailto:` (`open-matmsg.ps1`) |
+| `asset` | 50 | **no** | `^ASSET:(?P<id>\d+)$` | optional exec; **explicit `--trigger asset` only** |
 | `plain` | 999 | yes | catch-all (no regex) | copy payload (last resort) |
-| `asset` | 50 | **no** | `^ASSET:(?P<id>\d+)$` | exec: optional; **explicit `--trigger asset` only** |
 
 ### 8.2 Payload conventions
 
@@ -218,6 +221,8 @@ Scripts live beside the binary, under `VISIOFLOW_SHARE`, or in the repo `share/`
 | `open-mailto.*` | `QR_RAW` | Default mailto handler |
 | `open-tel.*` | `QR_RAW` | Default tel handler |
 | `open-geo.*` | `QR_NATIVE_GEO_LAT/LON` | Maps URL |
+| `wifi-handoff.ps1` | `QR_NATIVE_WIFI_*`, `VISIOFLOW_WIFI_HANDOFF_MODE` | Settings handoff UI (default); `print` mode via `--wifi-handoff print` |
+| `open-matmsg.ps1` | `QR_RAW` | Parse `MATMSG:TO:…;SUB:…` → `mailto:` |
 
 Native actions (`open_url`, `copy_to_clipboard` in Rust) may replace scripts in a later iteration if shell quoting becomes painful.
 
@@ -234,8 +239,8 @@ visioflow capture --source snip
 # Auto but never auto-join WiFi
 visioflow capture --source snip --except wifi
 
-# Desktop toast + stderr
-visioflow capture --source snip --notify on
+# Default: toasts on (use --no-notify to disable)
+visioflow capture --source snip
 ```
 
 ### Explicit rule
@@ -333,7 +338,7 @@ Rules remain editable via CLI or direct JSON ([`USER_GUIDE.md`](USER_GUIDE.md)).
 | stdout for snip users | **Opt-in** via `--action stdout` / `--trigger plain` |
 | User rules in auto | **`auto_compatible: false`** by default |
 | Regex in auto | **Required** when rule defines `regex`; must match to win |
-| Notifications | stderr always (unless `--silent`); desktop optional |
+| Notifications | stderr always (unless `--silent`); Windows desktop toasts on by default (`--no-notify` to disable) |
 
 ---
 
@@ -350,5 +355,8 @@ Rules remain editable via CLI or direct JSON ([`USER_GUIDE.md`](USER_GUIDE.md)).
 | [`ENGINE_RULES.md`](ENGINE_RULES.md) | Variable namespaces, sandbox, redaction |
 | [`Architecture.md`](Architecture.md) | CLI noun-verb, TDD, daemon |
 | [`Handoff-Router-Phase.md`](Handoff-Router-Phase.md) | What is already built |
-| [`USER_GUIDE.md`](USER_GUIDE.md) | End-user commands (update after implementation) |
+| [`Getting-Started.md`](Getting-Started.md) | Install and first scan |
+| [`Capture.md`](Capture.md) | Capture flags |
+| [`Notifications-Windows.md`](Notifications-Windows.md) | Toasts and Copy button |
+| [`USER_GUIDE.md`](USER_GUIDE.md) | Legacy index |
 | [`IPC_PROTOCOL.md`](IPC_PROTOCOL.md) | Daemon message shapes |

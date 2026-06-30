@@ -58,6 +58,13 @@
     },
     "exec": "share/actions/copy-text"
   },
+  "matmsg": {
+    "name": "matmsg",
+    "auto_compatible": true,
+    "priority": 21,
+    "regex": "^MATMSG:",
+    "exec": "share/actions/open-matmsg"
+  },
   "asset": {
     "name": "asset",
     "auto_compatible": false,

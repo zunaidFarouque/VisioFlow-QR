@@ -93,6 +93,10 @@ try {
 
     $installedBin = Join-Path $installRoot "visioflow.exe"
     Assert-True (Test-Path $installedBin) "traditional install did not place visioflow.exe"
+    $installedToast = Join-Path $installRoot "visioflow-toast.exe"
+    if (Test-Path (Join-Path $distRoot "visioflow-toast.exe")) {
+        Assert-True (Test-Path $installedToast) "traditional install did not place visioflow-toast.exe"
+    }
     Assert-True (Test-Path (Join-Path $installRoot "share\default-rules.json")) "traditional install missing default rules"
 
     & $bootstrapPath `

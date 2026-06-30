@@ -1,50 +1,99 @@
 # VisioFlow: Architecture & TDD Master Context
 
-## 1. Project Overview
-VisioFlow is an "Optical Automation Engine" and "Visual Payload Router." It bridges the gap between physical visual data (QR/barcodes) and desktop environments. It allows sysadmins and developers to capture payloads via webcam or screen-snip, parse them, map the data to ephemeral environment variables, and trigger native OS executions.
+## 1. Project overview
 
-## 2. Technology Stack & Constraints
-* **Backend:** Rust (native core; OpenCV used for live webcam capture/decode only).
-* **Daemon:** Pure-Rust background service (`visioflow daemon`) — **implemented** (`crates/visioflow-cli/src/commands/daemon.rs`, IPC in `visioflow-core`). Tauri headless wrapper is **optional / deferred**; not required for production use.
-* **Cross-Platform:** Windows and Linux (macOS is explicitly out of scope).
-* **User guide:** [`USER_GUIDE.md`](USER_GUIDE.md) — install, capture, rules, export, daemon, troubleshooting.
-* **Routing (planned):** [`Routing-And-Default-Rules.md`](Routing-And-Default-Rules.md) — auto-routing, default rules, builtins, copy fallback.
-* **Strict Constraints:**
-  * **Zero Bloat (static capture):** Snip and file capture remain native Rust (`rqrr`, Otsu/Median preprocessing).
-  * **Webcam Optical Engine:** Live webcam capture uses OpenCV `VideoCapture` with a spin-thread `grab()` loop, WeChat CNN decoding, and temporal exposure bracketing. See [`DOCs/Rust OpenCV QR Scanning Architecture.md`](Rust%20OpenCV%20QR%20Scanning%20Architecture.md).
-  * **IPC:** The CLI and the background Daemon MUST communicate via Local Sockets (Unix Domain Sockets on Linux, Named Pipes on Windows). Do not use file polling.
-  * **Optical Pre-processing (static):** Implement Otsu's threshold method natively in Rust before passing snip/file frames to the decoder.
+VisioFlow is an optical automation engine and **visual payload router**. It captures QR payloads via webcam or screen snip, parses them, maps data to ephemeral environment variables, and triggers native OS actions.
 
-## 3. CLI Architecture (The "Noun-Verb" Paradigm)
-The CLI must follow this exact structure using the `clap` crate:
-* **Global Flags:** `--output <plain|json>`, `--verbose`, `--silent`, `--export <bash|ps1>` (CRITICAL for parent shell evaluation), `--ipc-socket <PATH>`.
-* **`capture` (The Execution Engine):** `--source <snip|webcam>`, `--filter <otsu|median>`, `--action <stdout|copy>`, `--trigger <RULE_NAME>` — **implemented**. `--select` (multi-payload TUI) and `--interactive` (`[y/N]` confirm) — **implemented** (`capture.rs`).
-* **`rule` (The Automation Manager):** — **implemented**
-  * `create <NAME>`, `config <NAME> --regex <PAT>`, `config <NAME> --map <G:VAR>`, `execute <NAME> --payload <STR>`, `set-action <NAME> --exec <PATH>`.
-* **`daemon` (The Background Service):** — **implemented** (pure Rust; no Tauri)
-  * `start [--hidden]`, `stop`, `status`, `reload`.
+- **User docs:** [`DOCs/README.md`](README.md) — topic guides
+- **Routing:** [`Routing-And-Default-Rules.md`](Routing-And-Default-Rules.md) — **implemented** (auto-route, builtins, default pack, copy fallback, Windows toasts)
 
-## 4. Execution Sandbox Rules
-* Environment variables populated from regex capture groups must strictly live in the child process execution block (e.g., `std::process::Command::new().env()`). They must never persist globally.
-* Parent shell injection is handled EXCLUSIVELY via the `--export` flag outputting eval-compatible strings.
+## 2. Technology stack and constraints
+
+| Layer | Choice |
+|-------|--------|
+| Core | Rust (`visioflow-core`) — snip decode, rules, IPC, native parsers |
+| CLI | `visioflow-cli` — capture UX, minifb webcam preview, daemon |
+| Daemon | Pure-Rust background service — **implemented**; Tauri wrapper deferred |
+| Platforms | Windows + Linux (macOS out of scope) |
+
+**Constraints:**
+
+- **Static capture:** snip/file path uses native Rust (`rqrr`, Otsu/Median) — no OpenCV in static path.
+- **Webcam:** OpenCV `VideoCapture`, WeChat CNN, exposure bracketing — see [`Rust OpenCV QR Scanning Architecture.md`](Rust%20OpenCV%20QR%20Scanning%20Architecture.md).
+- **IPC:** CLI ↔ daemon via local sockets (named pipes / UDS). No file polling.
+- **Sandbox:** env vars via child `Command::env()` only; parent injection via `--export` only.
+
+## 3. CLI architecture (noun-verb)
+
+Implemented with `clap`:
+
+### Global flags
+
+| Flag | Purpose |
+|------|---------|
+| `--output plain\|json` | Resolved variable format |
+| `--verbose` | Diagnostics on stderr |
+| `--silent` | Suppress stdout |
+| `--export bash\|ps1` | Parent shell assignments |
+| `--ipc-socket <PATH>` | Daemon routing (`VISIOFLOW_IPC_SOCKET` env) |
+| `--disable-telemetry` | Hidden air-gap guard (future OTLP) |
+
+### `capture` — execution engine
+
+| Area | Flags / behavior |
+|------|------------------|
+| Source | `--source snip\|webcam`, `--filter otsu\|median`, `--action stdout\|copy` |
+| Routing | Omit `--trigger` → auto-route; `--except`, `--only`, `--on-mismatch` |
+| WiFi | `--wifi-handoff open-settings\|print` (default: Settings handoff) |
+| Feedback | Toasts **on** by default; `--no-notify` |
+| Webcam | `--timeout`, preview position/scale, exposure bracket tuning, `--no-mirror` (mirrored default) |
+| Halts | `--select`, `--interactive` |
+
+### `rule` — automation manager
+
+`create`, `config`, `set-action`, `execute`, `list`, `delete`, `init-defaults` — see [`Rules-CLI.md`](Rules-CLI.md).
+
+### `notify` — Windows notifications
+
+`notify test` — toast smoke test; hidden `notify copy` for protocol activation.
+
+### `daemon` — background service
+
+`start [--hidden]`, `stop`, `status`, `reload` — see [`Daemon-and-IPC.md`](Daemon-and-IPC.md).
+
+## 4. Execution sandbox
+
+- Variables live in the **child process** only.
+- `--export` is the only supported parent-shell injection path.
+- Sensitive keys redacted in daemon logs (`[REDACTED]`).
 
 ---
 
-## 5. Cursor AI: TDD Engineering Protocol
-You are acting as an elite Rust Systems Engineer. You will follow a strict Test-Driven Development (TDD) workflow for every feature.
+## 5. TDD engineering protocol
 
-### Step 1: Interface & Trait Definition
-Before writing implementation code, define the abstract traits. Because this is a system-level tool, you MUST abstract the OS layer so we can write unit tests on Windows without breaking Linux.
-Example: Create an `OsCommandRunner` trait rather than hardcoding `std::process::Command` directly in the logic.
+### Step 1: Interface and trait definition
 
-### Step 2: The Red Phase (Write Tests)
-Write the unit or integration tests FIRST. 
-* Use the `mockall` crate to mock OS interactions (camera access, clipboard, IPC sockets).
-* Assert exact expected outputs (e.g., test that Otsu's threshold mathematically returns the correct binarized matrix for a mock image array).
-* Do not proceed until `cargo test` explicitly fails for the right reasons.
+Abstract OS layer (`SystemExecutor`, IPC traits) for testability with `mockall`.
 
-### Step 3: The Green Phase (Implementation)
-Write the minimum viable Rust code to pass the test. Prioritize memory safety and explicit error handling (`Result<T, E>`). Never use `.unwrap()` in production logic.
+### Step 2: Red phase
 
-### Step 4: The Refactor Phase
-Optimize the code for zero-bloat. Ensure conditional compilation flags (`#[cfg(target_os = "windows")]`) are perfectly placed.
+Write failing tests first; assert exact outputs.
+
+### Step 3: Green phase
+
+Minimal implementation; no `.unwrap()` in production paths.
+
+### Step 4: Refactor
+
+Zero-bloat; `#[cfg(target_os = …)]` for platform branches.
+
+---
+
+## Related documents
+
+| Document | Role |
+|----------|------|
+| [`ENGINE_RULES.md`](ENGINE_RULES.md) | Variable namespaces, optical pipeline notes |
+| [`Handoff-Router-Phase.md`](Handoff-Router-Phase.md) | Feature status table |
+| [`IPC_PROTOCOL.md`](IPC_PROTOCOL.md) | NDJSON wire format |
+| [`PLATFORM_CI.md`](PLATFORM_CI.md) | CI matrix and conventions |

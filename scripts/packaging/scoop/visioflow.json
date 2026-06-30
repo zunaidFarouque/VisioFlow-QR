@@ -1,12 +1,12 @@
 {
   "version": "0.1.0",
   "description": "Visual payload router for QR capture and automation",
-  "homepage": "https://github.com/<your-org>/VisioFlow-QR",
+  "homepage": "https://github.com/zunaidFarouque/VisioFlow-QR",
   "license": "MIT",
   "architecture": {
     "64bit": {
-      "url": "https://github.com/<your-org>/VisioFlow-QR/releases/download/v0.1.0/visioflow-win-x64.zip",
-      "hash": "<sha256>",
+      "url": "https://github.com/zunaidFarouque/VisioFlow-QR/releases/download/v0.1.0/visioflow-win-x64.zip",
+      "hash": "aac65efc3bc0afea6478be3b1a2ba65ddc89664a534e1383e1bab599fd704b93",
       "extract_dir": "visioflow-win-x64"
     }
   },
@@ -17,12 +17,12 @@
     "Write-Host \"Run bootstrap once: powershell -ExecutionPolicy Bypass -File $dir\\\\bootstrap-portable.ps1 -DistRoot $dir -Force\""
   ],
   "checkver": {
-    "github": "https://github.com/<your-org>/VisioFlow-QR"
+    "github": "https://github.com/zunaidFarouque/VisioFlow-QR"
   },
   "autoupdate": {
     "architecture": {
       "64bit": {
-        "url": "https://github.com/<your-org>/VisioFlow-QR/releases/download/v$version/visioflow-win-x64.zip",
+        "url": "https://github.com/zunaidFarouque/VisioFlow-QR/releases/download/v$version/visioflow-win-x64.zip",
         "extract_dir": "visioflow-win-x64"
       }
     }

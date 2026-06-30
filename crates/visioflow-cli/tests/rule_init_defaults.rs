@@ -16,6 +16,7 @@ const STOCK_RULE_NAMES: &[&str] = &[
     "vcard",
     "event",
     "clipboard",
+    "matmsg",
     "asset",
     "plain",
 ];
@@ -43,6 +44,13 @@ fn rule_init_defaults_installs_all_stock_rules() {
     assert!(url.auto_compatible);
     let exec = url.exec.as_ref().expect("url exec");
     assert_eq!(exec, &resolve_share_path("share/actions/open-url"));
+
+    let matmsg = rules.get("matmsg").expect("matmsg");
+    assert_eq!(matmsg.priority, 21);
+    assert!(matmsg.auto_compatible);
+    assert_eq!(matmsg.regex.as_deref(), Some("^MATMSG:"));
+    let matmsg_exec = matmsg.exec.as_ref().expect("matmsg exec");
+    assert_eq!(matmsg_exec, &resolve_share_path("share/actions/open-matmsg"));
 }
 
 #[test]

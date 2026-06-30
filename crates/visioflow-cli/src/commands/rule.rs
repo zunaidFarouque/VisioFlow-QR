@@ -262,6 +262,7 @@ mod tests {
         let rules = store.load_all().expect("load");
         assert!(rules.contains_key("url"));
         assert!(rules.contains_key("wifi"));
+        assert!(rules.contains_key("matmsg"));
         assert!(rules.contains_key("plain"));
 
         let url = rules.get("url").expect("url rule");
