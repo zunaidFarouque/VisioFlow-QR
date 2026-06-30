@@ -51,9 +51,11 @@ cargo build --release -p visioflow-cli
    - `version`
    - `architecture.64bit.url` (release download URL)
    - `architecture.64bit.hash` (SHA256 from build script output; use `sha256:<hash>` for Scoop)
-4. Publish or refresh the Scoop bucket manifest.
+4. Copy `scripts/packaging/scoop/visioflow.json` into your Scoop bucket repo and publish (see `scripts/packaging/scoop/README.md` for bucket layout).
 
 Scoop manifest path: `scripts/packaging/scoop/visioflow.json`
+
+`post_install` seeds rules, syncs to `%APPDATA%\visioflow\rules.json`, and installs shortcuts via bundled `install-shortcuts.ps1`. `uninstaller` removes shortcuts and launchers; rules persist under `~/scoop/persist/visioflow/` unless `scoop uninstall -p`.
 
 ## Local validation before publishing
 

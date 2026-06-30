@@ -39,7 +39,8 @@ if (-not $scoopUrl -and $manifest.architecture) {
 }
 Assert-True $scoopUrl "scoop manifest: url missing"
 Assert-True ($manifest.bin) "scoop manifest: bin missing"
-Assert-Contains $manifestRaw "bootstrap-portable.ps1" "scoop manifest"
+Assert-Contains $manifestRaw "install-shortcuts.ps1" "scoop manifest"
+Assert-Contains $manifestRaw "uninstaller" "scoop manifest"
 
 $tmp = Join-Path $env:TEMP "visioflow-dist-smoke-$(Get-Random)"
 $distRoot = Join-Path $tmp "dist"
@@ -110,6 +111,8 @@ try {
         Assert-True (Test-Path (Join-Path $appData "VisioFlow\launchers\$name.cmd")) "portable bootstrap missing launcher $name.cmd"
     }
     Assert-True (Test-Path (Join-Path $appData "visioflow\rules.json")) "portable bootstrap missing rules store"
+
+    & ".\scripts\test-scoop-manifest.ps1"
 
     Write-Host "All distribution smoke checks passed."
 }

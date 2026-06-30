@@ -21,14 +21,11 @@ Three supported paths — use one:
 
 ### 1. Scoop portable (recommended)
 
-Manifest: `scripts/packaging/scoop/visioflow.json`
+Manifest: `scripts/packaging/scoop/visioflow.json` (bucket layout: `scripts/packaging/scoop/README.md`). Install runs bootstrap automatically.
 
 ```powershell
 scoop bucket add visioflow-bucket <your-bucket-url>
 scoop install visioflow
-
-# One-time bootstrap (shortcuts, rules seed)
-powershell -ExecutionPolicy Bypass -File "$env:USERPROFILE\scoop\apps\visioflow\current\bootstrap-portable.ps1" -DistRoot "$env:USERPROFILE\scoop\apps\visioflow\current" -Force
 ```
 
 ### 2. Traditional machine-local install
