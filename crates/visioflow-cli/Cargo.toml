@@ -12,6 +12,10 @@ path = "src/lib.rs"
 name = "visioflow"
 path = "src/main.rs"
 
+[[bin]]
+name = "visioflow-toast"
+path = "src/bin/visioflow-toast.rs"
+
 [features]
 default = ["opencv-webcam"]
 opencv-webcam = ["visioflow-core/opencv-webcam"]
@@ -30,6 +34,7 @@ minifb = "0.28"
 [target.'cfg(windows)'.dependencies]
 windows-sys = { version = "0.59", features = [
     "Win32_Foundation",
+    "Win32_System_Console",
     "Win32_UI_WindowsAndMessaging",
 ] }
 windows = { version = "0.58", features = [

@@ -158,10 +158,35 @@ fn percent_decode(input: &str) -> std::result::Result<String, String> {
     String::from_utf8(out).map_err(|e| e.to_string())
 }
 
+/// Windows GUI-subsystem helper next to `visioflow.exe` for toast Copy activation.
+pub const TOAST_ACTIVATOR_EXE_NAME: &str = "visioflow-toast.exe";
+
+/// Path to the headless toast activator shipped beside the main CLI binary.
+#[must_use]
+pub fn toast_activator_exe_path(main_exe: &std::path::Path) -> std::path::PathBuf {
+    main_exe
+        .parent()
+        .map(|parent| parent.join(TOAST_ACTIVATOR_EXE_NAME))
+        .unwrap_or_else(|| std::path::PathBuf::from(TOAST_ACTIVATOR_EXE_NAME))
+}
+
 /// CLI arguments Windows passes when the toast Copy button is clicked (foreground activation).
 #[must_use]
 pub fn toast_copy_activation_args(staging_path: &std::path::Path) -> String {
     toast_copy_protocol_uri(staging_path)
+}
+
+#[cfg(windows)]
+fn ensure_toast_activator_binary(main_exe: &std::path::Path) -> std::result::Result<(), String> {
+    let activator = toast_activator_exe_path(main_exe);
+    if activator.is_file() {
+        Ok(())
+    } else {
+        Err(format!(
+            "missing toast activator {} — rebuild with: cargo build -p visioflow-cli",
+            activator.display()
+        ))
+    }
 }
 
 /// Write `payload` to a temp file for toast Copy activation; returns the file path.
@@ -444,6 +469,7 @@ fn install_toast_shortcut(
 
 #[cfg(windows)]
 fn register_toast_activation_support(exe_path: &std::path::Path) -> std::result::Result<(), String> {
+    ensure_toast_activator_binary(exe_path)?;
     register_toast_protocol_handler(exe_path)?;
     register_toast_aumid_registry()
 }
@@ -452,10 +478,8 @@ fn register_toast_activation_support(exe_path: &std::path::Path) -> std::result:
 #[cfg(windows)]
 #[must_use]
 pub fn toast_protocol_registry_command(exe_path: &std::path::Path) -> String {
-    let exe = escape_powershell_single_quoted(&exe_path.to_string_lossy());
-    format!(
-        r#"powershell.exe -WindowStyle Hidden -NoProfile -ExecutionPolicy Bypass -Command "$p='{exe}'; $a='%1'; $si=New-Object System.Diagnostics.ProcessStartInfo; $si.FileName=$p; $si.Arguments=$a; $si.CreateNoWindow=$true; $si.UseShellExecute=$false; [void][System.Diagnostics.Process]::Start($si)""#
-    )
+    let activator = toast_activator_exe_path(exe_path);
+    format!(r#""{}" "%1""#, activator.display())
 }
 
 #[cfg(not(windows))]
@@ -713,10 +737,9 @@ mod tests {
         let path = stage_toast_copy_payload("protocol-dispatch-target").expect("stage");
         let uri = toast_copy_protocol_uri(&path);
         let parsed = parse_toast_protocol_activation(&uri).expect("parse");
+        assert_eq!(parsed, path);
         copy_payload_from_toast_staging(&parsed).expect("copy");
-        let mut clipboard = arboard::Clipboard::new().expect("clipboard");
-        let text = clipboard.get_text().expect("clipboard text");
-        assert_eq!(text, "protocol-dispatch-target");
+        assert!(!path.exists());
     }
 
     #[test]
@@ -847,15 +870,24 @@ mod tests {
 
     #[cfg(windows)]
     #[test]
-    fn toast_protocol_registry_command_launches_hidden_without_console() {
+    fn toast_activator_exe_path_is_sibling_of_main_binary() {
+        let main = std::path::Path::new(r"C:\app\target\release\visioflow.exe");
+        let activator = toast_activator_exe_path(main);
+        assert_eq!(
+            activator,
+            std::path::Path::new(r"C:\app\target\release\visioflow-toast.exe")
+        );
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn toast_protocol_registry_command_uses_headless_activator_without_powershell() {
         let cmd = toast_protocol_registry_command(std::path::Path::new(
             r"C:\app\target\release\visioflow.exe",
         ));
-        assert!(cmd.contains("powershell.exe"));
-        assert!(cmd.contains("-WindowStyle Hidden"));
-        assert!(cmd.contains("CreateNoWindow"));
-        assert!(cmd.contains("visioflow.exe"));
+        assert!(cmd.contains("visioflow-toast.exe"));
         assert!(cmd.contains("%1"));
-        assert!(!cmd.contains(r#""C:\app\target\release\visioflow.exe" "%1""#));
+        assert!(!cmd.contains("powershell"));
+        assert!(!cmd.contains("CreateNoWindow"));
     }
 }

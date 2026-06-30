@@ -74,6 +74,10 @@ if (-not $bin) {
 }
 
 Copy-Item -Path $bin -Destination (Join-Path $distRoot "visioflow.exe")
+$toastBin = Join-Path (Split-Path $bin -Parent) "visioflow-toast.exe"
+if (Test-Path $toastBin) {
+    Copy-Item -Path $toastBin -Destination (Join-Path $distRoot "visioflow-toast.exe")
+}
 Copy-Item -Path "assets\default-rules.json" -Destination (Join-Path $distRoot "default-rules.json")
 Copy-Item -Path "scripts\install-shortcuts.ps1" -Destination (Join-Path $distRoot "install-shortcuts.ps1")
 Copy-Item -Path $bootstrapPath -Destination (Join-Path $distRoot "bootstrap-portable.ps1")

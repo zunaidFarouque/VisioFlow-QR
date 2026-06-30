@@ -54,6 +54,10 @@ New-Item -ItemType Directory -Path $resolvedInstall -Force | Out-Null
 New-Item -ItemType Directory -Path (Join-Path $resolvedInstall "share") -Force | Out-Null
 
 Copy-Item -Path $distBin -Destination (Join-Path $resolvedInstall "visioflow.exe") -Force
+$distToastBin = Join-Path $resolvedDist "visioflow-toast.exe"
+if (Test-Path $distToastBin) {
+    Copy-Item -Path $distToastBin -Destination (Join-Path $resolvedInstall "visioflow-toast.exe") -Force
+}
 Copy-Item -Path $distRules -Destination (Join-Path $resolvedInstall "share\default-rules.json") -Force
 if (Test-Path $distShare) {
     Copy-Item -Path (Join-Path $distShare "*") -Destination (Join-Path $resolvedInstall "share") -Recurse -Force

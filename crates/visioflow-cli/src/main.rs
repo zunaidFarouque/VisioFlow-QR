@@ -290,7 +290,44 @@ enum RuleCommands {
     },
 }
 
+#[cfg(windows)]
+fn hide_console_for_toast_protocol_if_needed() {
+    use visioflow_cli::notifications::TOAST_PROTOCOL_SCHEME;
+
+    let mut args = std::env::args();
+    args.next();
+    let Some(arg) = args.next() else {
+        return;
+    };
+    if args.next().is_some() {
+        return;
+    }
+    if !arg
+        .to_ascii_lowercase()
+        .starts_with(&format!("{TOAST_PROTOCOL_SCHEME}:"))
+    {
+        return;
+    }
+    hide_console_window();
+}
+
+#[cfg(windows)]
+fn hide_console_window() {
+    use windows_sys::Win32::System::Console::GetConsoleWindow;
+    use windows_sys::Win32::UI::WindowsAndMessaging::{ShowWindow, SW_HIDE};
+
+    unsafe {
+        let hwnd = GetConsoleWindow();
+        if !hwnd.is_null() {
+            ShowWindow(hwnd, SW_HIDE);
+        }
+    }
+}
+
 fn main() {
+    #[cfg(windows)]
+    hide_console_for_toast_protocol_if_needed();
+
     if let Some(result) = visioflow_cli::notifications::try_dispatch_toast_protocol_activation() {
         match result {
             Ok(()) => return,
