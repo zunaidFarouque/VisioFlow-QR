@@ -12,6 +12,7 @@ env:
 jobs:
   build:
     strategy:
+      fail-fast: false
       matrix:
         os: [windows-latest, ubuntu-latest]
     runs-on: ${{ matrix.os }}
@@ -29,7 +30,17 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y libopencv-contrib-dev clang libclang-dev pkg-config curl libdbus-1-dev
+          sudo apt-get install -y \
+            libopencv-dev \
+            libopencv-contrib-dev \
+            clang \
+            libclang-dev \
+            llvm-dev \
+            pkg-config \
+            curl \
+            libdbus-1-dev \
+            cmake
+          echo "PKG_CONFIG_PATH=/usr/lib/x86_64-linux-gnu/pkgconfig" >> "$GITHUB_ENV"
 
       - name: Install OpenCV (Windows)
         if: runner.os == 'Windows'
