@@ -17,6 +17,16 @@ pub struct Rule {
     /// When true, connect to WiFi using `QR_NATIVE_WIFI_*` vars after routing.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub wifi_connect: bool,
+    /// When true, rule participates in auto-routing scan.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub auto_compatible: bool,
+    /// Auto-scan order: lower values are tried first.
+    #[serde(default = "default_priority")]
+    pub priority: u32,
+}
+
+fn default_priority() -> u32 {
+    100
 }
 
 impl Rule {
@@ -28,6 +38,8 @@ impl Rule {
             captures: BTreeMap::new(),
             exec: None,
             wifi_connect: false,
+            auto_compatible: false,
+            priority: default_priority(),
         }
     }
 }

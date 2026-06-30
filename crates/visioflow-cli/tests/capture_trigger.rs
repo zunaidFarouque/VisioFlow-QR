@@ -93,20 +93,6 @@ fn capture_trigger_export_bash_includes_resolved_vars() {
     let fixture = dir.path().join("qr.png");
     render_qr_fixture(&fixture, "hello-trigger");
 
-    let store = dir.path().join("rules.json");
-
-    Command::cargo_bin("visioflow")
-        .expect("visioflow binary")
-        .args([
-            "rule",
-            "--store",
-            &store.display().to_string(),
-            "create",
-            "plain",
-        ])
-        .assert()
-        .success();
-
     Command::cargo_bin("visioflow")
         .expect("visioflow binary")
         .args([
@@ -115,10 +101,6 @@ fn capture_trigger_export_bash_includes_resolved_vars() {
             "capture",
             "--source",
             "snip",
-            "--action",
-            "stdout",
-            "--store",
-            &store.display().to_string(),
             "--trigger",
             "plain",
             "--input-image",

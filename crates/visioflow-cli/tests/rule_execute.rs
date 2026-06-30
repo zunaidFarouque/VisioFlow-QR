@@ -212,7 +212,7 @@ fn rule_execute_json_output() {
             "--store",
             &store.display().to_string(),
             "create",
-            "plain",
+            "demo",
         ])
         .assert()
         .success();
@@ -226,9 +226,10 @@ fn rule_execute_json_output() {
             "--store",
             &store.display().to_string(),
             "execute",
-            "plain",
+            "demo",
             "--payload",
             "hello",
+            "--no-exec",
         ])
         .assert()
         .success()

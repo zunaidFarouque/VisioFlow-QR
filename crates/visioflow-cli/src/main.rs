@@ -2,16 +2,18 @@ use std::path::PathBuf;
 
 use clap::{Parser, Subcommand, ValueEnum};
 use visioflow_cli::commands::capture::{
-    apply_capture_halts, route_capture_trigger, run_capture, spawn_rule_actions, write_capture_output,
-    CaptureAction, CaptureArgs, CaptureFilter, CaptureSource, ExposureBracketMode, PreviewPosition,
+    apply_capture_halts, apply_routing_after_halts, route_mode_from_trigger, run_capture,
+    write_capture_output, CaptureAction, CaptureArgs, CaptureFilter, CaptureSource,
+    ExposureBracketMode, OnMismatch, PreviewPosition, RoutingApplyResult,
 };
+use visioflow_cli::commands::exec::spawn_rule_actions;
 use visioflow_cli::commands::daemon::{
     daemon_reload_ipc, daemon_start, daemon_status, daemon_stop, default_pid_path,
     route_capture_trigger_via_ipc, rule_execute_via_ipc, run_daemon_server_loop,
 };
 use visioflow_cli::commands::rule::{
-    map_rule_error, open_store, rule_config, rule_create, rule_delete, rule_execute, rule_list,
-    rule_set_action, write_resolved_output, write_rule_list_output, RuleOutputFormat,
+    map_rule_error, open_store, rule_config, rule_create, rule_delete, rule_execute, rule_init_defaults,
+    rule_list, rule_set_action, write_resolved_output, write_rule_list_output, RuleOutputFormat,
 };
 #[cfg(feature = "opencv-webcam")]
 use visioflow_cli::webcam_preview::DEFAULT_DECODE_INTERVAL_MS;
@@ -87,7 +89,7 @@ enum Commands {
         filter: CaptureFilter,
 
         #[arg(long, value_enum)]
-        action: CaptureAction,
+        action: Option<CaptureAction>,
 
         /// Load frame from image file instead of a live source (integration tests)
         #[arg(long, hide = true)]
@@ -121,9 +123,21 @@ enum Commands {
         #[arg(long, value_enum, default_value = "auto")]
         exposure_bracket: ExposureBracketMode,
 
-        /// Apply a named routing rule to the captured payload
+        /// Apply a named routing rule to the captured payload (omit for auto-route)
         #[arg(long)]
         trigger: Option<String>,
+
+        /// Exclude rule(s) from auto-routing scan (repeatable)
+        #[arg(long)]
+        except: Vec<String>,
+
+        /// Only consider these rules during auto-routing (repeatable)
+        #[arg(long)]
+        only: Vec<String>,
+
+        /// Fallback when routing fails: copy payload or exit strict
+        #[arg(long, value_enum, default_value = "copy")]
+        on_mismatch: OnMismatch,
 
         /// Interactive list when multiple payloads are decoded
         #[arg(long)]
@@ -220,6 +234,17 @@ enum RuleCommands {
     /// Remove a rule from the store
     Delete {
         name: String,
+    },
+
+    /// Install stock default routing rules
+    InitDefaults {
+        /// Add missing default rules only; do not overwrite existing names
+        #[arg(long)]
+        merge: bool,
+
+        /// Replace the entire rule store with stock defaults
+        #[arg(long)]
+        force: bool,
     },
 }
 
@@ -323,6 +348,9 @@ fn run() -> visioflow_core::error::Result<()> {
                 RuleCommands::Delete { name } => {
                     rule_delete(&store, &name).map_err(map_rule_error)?;
                 }
+                RuleCommands::InitDefaults { merge, force } => {
+                    rule_init_defaults(&store, merge, force).map_err(map_rule_error)?;
+                }
             }
         }
         Commands::Daemon {
@@ -380,6 +408,9 @@ fn run() -> visioflow_core::error::Result<()> {
             decode_interval_ms,
             exposure_bracket,
             trigger,
+            except,
+            only,
+            on_mismatch,
             select,
             interactive,
             store: rule_store,
@@ -398,6 +429,9 @@ fn run() -> visioflow_core::error::Result<()> {
                 decode_interval_ms,
                 exposure_bracket,
                 trigger: trigger.clone(),
+                except: except.clone(),
+                only: only.clone(),
+                on_mismatch,
                 rule_store: rule_store.clone(),
                 select,
                 interactive,
@@ -413,43 +447,77 @@ fn run() -> visioflow_core::error::Result<()> {
                 &mut stderr,
             )?;
 
-            if let Some(rule_name) = trigger {
+            let routing_active = trigger.is_some() || action.is_none();
+
+            if routing_active {
                 if cli.verbose && !cli.silent {
-                    eprintln!(
-                        "decoded {} payload(s) for trigger '{rule_name}'",
-                        payloads.len()
-                    );
+                    if let Some(rule_name) = trigger.as_deref() {
+                        eprintln!(
+                            "decoded {} payload(s) for trigger '{rule_name}'",
+                            payloads.len()
+                        );
+                    } else {
+                        eprintln!("decoded {} payload(s) for auto-route", payloads.len());
+                    }
                     for (index, payload) in payloads.iter().enumerate() {
                         eprintln!("  [{index}] {payload:?}");
                     }
                 }
 
-                if let Some(ref socket) = ipc_socket {
-                    let vars =
-                        route_capture_trigger_via_ipc(socket, &rule_name, &payloads)?;
+                let explicit_ipc_trigger = trigger.as_deref().filter(|name| {
+                    *name != "copy" && *name != "plain" && *name != "auto"
+                });
+
+                if let (Some(ref socket), Some(rule_name)) =
+                    (ipc_socket.as_ref(), explicit_ipc_trigger)
+                {
+                    let vars = route_capture_trigger_via_ipc(socket, rule_name, &payloads)?;
                     if let Some(export_fmt) = cli.export {
                         let map = visioflow_core::vars_from_resolved(&vars);
                         write_export_output(&map, export_fmt, cli.silent)?;
                     } else if matches!(output_format, RuleOutputFormat::Json) {
                         write_resolved_output(&vars, RuleOutputFormat::Json, cli.silent)?;
-                    } else {
+                    } else if matches!(action, Some(CaptureAction::Stdout)) || trigger.is_some() {
                         write_resolved_output(&vars, RuleOutputFormat::Plain, cli.silent)?;
                     }
                 } else {
                     let store = open_store(rule_store);
-                    let routed = route_capture_trigger(&store, &rule_name, &payloads)
-                        .map_err(map_rule_error)?;
+                    let mode = route_mode_from_trigger(trigger.as_deref(), &except, &only);
+                    let result = apply_routing_after_halts(
+                        &store,
+                        &payloads,
+                        mode,
+                        on_mismatch,
+                        cli.silent,
+                    )?;
 
-                    if let Some(export_fmt) = cli.export {
-                        let vars = visioflow_core::vars_from_resolved(&routed.vars);
-                        write_export_output(&vars, export_fmt, cli.silent)?;
-                    } else if matches!(output_format, RuleOutputFormat::Json) {
-                        write_resolved_output(&routed.vars, RuleOutputFormat::Json, cli.silent)?;
-                    } else {
-                        write_resolved_output(&routed.vars, RuleOutputFormat::Plain, cli.silent)?;
+                    match result {
+                        RoutingApplyResult::Matched(routed) => {
+                            if let Some(export_fmt) = cli.export {
+                                let vars = visioflow_core::vars_from_resolved(&routed.vars);
+                                write_export_output(&vars, export_fmt, cli.silent)?;
+                            } else if matches!(output_format, RuleOutputFormat::Json) {
+                                write_resolved_output(
+                                    &routed.vars,
+                                    RuleOutputFormat::Json,
+                                    cli.silent,
+                                )?;
+                            } else if matches!(action, Some(CaptureAction::Stdout)) || trigger.is_some() {
+                                write_resolved_output(
+                                    &routed.vars,
+                                    RuleOutputFormat::Plain,
+                                    cli.silent,
+                                )?;
+                            }
+                        }
+                        RoutingApplyResult::CopiedPayload { .. }
+                        | RoutingApplyResult::PrintedPayload(_) => {
+                            if let Some(export_fmt) = cli.export {
+                                let vars = visioflow_core::vars_from_payloads(&payloads);
+                                write_export_output(&vars, export_fmt, cli.silent)?;
+                            }
+                        }
                     }
-
-                    spawn_rule_actions(&routed.rule, &routed.vars).map_err(map_rule_error)?;
                 }
             } else if let Some(export_fmt) = cli.export {
                 let vars = visioflow_core::vars_from_payloads(&payloads);
@@ -462,7 +530,11 @@ fn run() -> visioflow_core::error::Result<()> {
                     println!("{json}");
                 }
             } else {
-                write_capture_output(&payloads, action, cli.silent)?;
+                write_capture_output(
+                    &payloads,
+                    action.unwrap_or(CaptureAction::Stdout),
+                    cli.silent,
+                )?;
             }
         }
     }
@@ -612,6 +684,43 @@ mod tests {
         .expect("cli should parse");
 
         assert!(cli.disable_telemetry);
+    }
+
+    #[test]
+    fn capture_accepts_routing_flags() {
+        let cli = Cli::try_parse_from([
+            "visioflow",
+            "capture",
+            "--source",
+            "snip",
+            "--except",
+            "wifi",
+            "--except",
+            "asset",
+            "--only",
+            "url",
+            "--on-mismatch",
+            "none",
+        ])
+        .expect("cli should parse");
+
+        match cli.command {
+            Commands::Capture {
+                action,
+                trigger,
+                except,
+                only,
+                on_mismatch,
+                ..
+            } => {
+                assert!(action.is_none());
+                assert!(trigger.is_none());
+                assert_eq!(except, vec!["wifi", "asset"]);
+                assert_eq!(only, vec!["url"]);
+                assert!(matches!(on_mismatch, OnMismatch::None));
+            }
+            Commands::Rule { .. } | Commands::Daemon { .. } => panic!("expected capture"),
+        }
     }
 
     #[test]

@@ -1,4 +1,10 @@
 //! Daemon-side request handling for IPC messages.
+//!
+//! [`ClientMessage::ExecuteRule`] always takes an explicit rule `name` (same as
+//! `visioflow rule execute <NAME>`). Auto-routing (`route_payload` / omitting
+//! `--trigger` on capture) is CLI-local today; clients that need auto mode should
+//! run `capture` without `--ipc-socket`, or resolve the rule name client-side and
+//! send `execute_rule` with that name.
 
 use std::collections::BTreeMap;
 

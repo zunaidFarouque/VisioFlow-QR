@@ -19,6 +19,7 @@ It is **not** just a QR scanner.
 | [`Rust OpenCV QR Scanning Architecture.md`](Rust%20OpenCV%20QR%20Scanning%20Architecture.md) | Webcam path only (already implemented) |
 | [`PLATFORM_CI.md`](PLATFORM_CI.md) | Cross-platform patterns, `interprocess` for IPC |
 | [`USER_GUIDE.md`](USER_GUIDE.md) | End-user kickstart: install, rules, export, daemon, troubleshooting |
+| [`Routing-And-Default-Rules.md`](Routing-And-Default-Rules.md) | **v2 (done):** auto-routing, default rule pack, builtins, copy fallback |
 
 ---
 
@@ -86,6 +87,9 @@ cargo run --release -p visioflow-cli -- capture --source webcam --action stdout 
 | `rule list` / `rule delete` | `commands/rule.rs` |
 | WiFi `SystemExecutor` + `--wifi-connect` | `sys/`, `rules/actions.rs` |
 | IPC socket E2E test (CI) | `ipc/transport_test.rs` |
+| **v2 routing** — auto-route, builtins, `--except` / `--on-mismatch`, copy fallback | [`Routing-And-Default-Rules.md`](Routing-And-Default-Rules.md), `rules/auto.rs`, `tests/capture_routing.rs` |
+| Default rule pack + `rule init-defaults` | `assets/default-rules.json`, `share/actions/*`, `tests/rule_init_defaults.rs` |
+| Default-rules smoke script | `scripts/smoke-default-rules.ps1` |
 
 ### Not built yet
 
@@ -114,13 +118,15 @@ cargo run --release -p visioflow-cli -- capture --source webcam --action stdout 
 ### `capture` (execution engine)
 
 - `--source <snip|webcam>`, `--filter <otsu|median>`, `--action <stdout|copy>`
-- `--trigger <RULE_NAME>` — **done**
+- `--trigger <RULE_NAME>` — omit for **auto-route** (after `rule init-defaults`)
+- `--except <NAME>` / `--only <NAME>` — constrain auto scan — **done**
+- `--on-mismatch <copy|none>` — mismatch fallback — **done**
 - `--select` — interactive TUI when multiple payloads — **done**
 - `--interactive` — `[y/N]` confirm — **done**
 
 ### `rule` (automation manager) — **done**
 
-- `create <NAME>`, `config <NAME> --regex`, `config <NAME> --map`, `execute <NAME> --payload`, `set-action [--exec] [--wifi-connect]`, `list`, `delete <NAME>`
+- `create <NAME>`, `config <NAME> --regex`, `config <NAME> --map`, `execute <NAME> --payload`, `set-action [--exec] [--wifi-connect]`, `list`, `delete <NAME>`, `init-defaults [--merge|--force]`
 
 ### `daemon` (background service) — **done**
 
@@ -146,10 +152,12 @@ cargo run --release -p visioflow-cli -- capture --source webcam --action stdout 
 
 ## 7. Suggested next work
 
-Router phases A–F and Wave 4 polish are complete. Optional next work:
+Router phases A–F, Wave 4 polish, and **v2 routing** are complete. Optional next work:
 
 | Priority | Deliverable |
 |---|---|
+| **Later** | IPC auto-route message (daemon `execute_rule` is explicit-name only today) |
+| **Later** | `--notify` desktop toasts |
 | **Later** | OTLP telemetry (air-gap hook exists; no exporter yet) |
 | **Later** | Tauri headless daemon (optional; pure-Rust daemon ships today) |
 
@@ -186,4 +194,4 @@ Release binary (~19 MB standalone on Windows with static vcpkg triplet). WeChat 
 
 Copy and adapt:
 
-> Router + polish phases are complete. Optional next: Tauri daemon or OTLP telemetry. Read `DOCs/USER_GUIDE.md`. Do not refactor webcam/OpenCV unless required.
+> Router + polish + **v2 routing** are complete. Read `DOCs/USER_GUIDE.md` (Capture routing §) and `DOCs/Routing-And-Default-Rules.md`. Optional next: IPC auto-route, `--notify`, Tauri daemon, or OTLP telemetry. Do not refactor webcam/OpenCV unless required.

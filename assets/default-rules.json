@@ -1,0 +1,68 @@
+{
+  "wifi": {
+    "name": "wifi",
+    "auto_compatible": true,
+    "priority": 5,
+    "wifi_connect": true
+  },
+  "url": {
+    "name": "url",
+    "auto_compatible": true,
+    "priority": 10,
+    "regex": "^https?://\\S+$",
+    "exec": "share/actions/open-url"
+  },
+  "mailto": {
+    "name": "mailto",
+    "auto_compatible": true,
+    "priority": 15,
+    "regex": "^mailto:",
+    "exec": "share/actions/open-mailto"
+  },
+  "tel": {
+    "name": "tel",
+    "auto_compatible": true,
+    "priority": 16,
+    "regex": "^tel:",
+    "exec": "share/actions/open-tel"
+  },
+  "geo": {
+    "name": "geo",
+    "auto_compatible": true,
+    "priority": 17,
+    "regex": "^geo:",
+    "exec": "share/actions/open-geo"
+  },
+  "vcard": {
+    "name": "vcard",
+    "auto_compatible": true,
+    "priority": 18,
+    "regex": "BEGIN:VCARD",
+    "exec": "share/actions/copy-text"
+  },
+  "clipboard": {
+    "name": "clipboard",
+    "auto_compatible": true,
+    "priority": 20,
+    "regex": "^(?i)(?:clipboard|clip):(?P<text>.+)$",
+    "captures": {
+      "text": "TEXT"
+    },
+    "exec": "share/actions/copy-text"
+  },
+  "asset": {
+    "name": "asset",
+    "auto_compatible": false,
+    "priority": 50,
+    "regex": "^ASSET:(?P<id>\\d+)$",
+    "captures": {
+      "id": "ID"
+    }
+  },
+  "plain": {
+    "name": "plain",
+    "auto_compatible": true,
+    "priority": 999,
+    "exec": "share/actions/copy-text"
+  }
+}

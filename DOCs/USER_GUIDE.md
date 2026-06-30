@@ -72,9 +72,15 @@ Download WeChat CNN model files into `models/` (see `models/README.md`).
 
 ```powershell
 .\scripts\smoke-router.ps1
+.\scripts\smoke-default-rules.ps1
+.\scripts\smoke-shortcuts.ps1
 ```
 
-This runs core/CLI tests, builds with `--no-default-features`, and exercises rule create/config/execute plus `--export bash`.
+`smoke-router.ps1` runs core/CLI tests, builds with `--no-default-features`, and exercises rule create/config/execute plus `--export bash`.
+
+`smoke-default-rules.ps1` seeds stock rules via `rule init-defaults` into a temp store, runs `rule execute url --no-exec`, and checks `rule list`.
+
+`smoke-shortcuts.ps1` validates the Windows shortcut installer in temp directories (launcher `.cmd` files + Desktop/Start Menu `.lnk` files).
 
 ### Config file locations
 
@@ -124,6 +130,24 @@ QR_VAR_ASSET=42
 - `--map asset:ASSET` maps capture group `asset` to env suffix `ASSET` → `QR_VAR_ASSET`.
 - Omit `--map` to auto-uppercase the group name (`(?P<asset>…)` → `QR_VAR_ASSET`).
 
+### 2b. Install stock default rules (`init-defaults`)
+
+Shipped rules (URL, WiFi, mailto, tel, geo, vCard, clipboard prefix, catch-all `plain`, explicit-only `asset`) live in `assets/default-rules.json`. Install them into your store:
+
+```powershell
+visioflow rule init-defaults
+```
+
+| Flag | Behavior |
+|---|---|
+| *(none)* | Upsert all stock rules (overwrites same names) |
+| `--merge` | Add missing stock rules only; keep your edits to existing names |
+| `--force` | Replace the entire store with stock defaults |
+
+Action scripts resolve from the binary directory, `VISIOFLOW_SHARE`, or the repo `share/` tree during dev. After install, snip capture **auto-routes** without `--trigger` (see § Capture routing).
+
+Integration tests can pass `--store <path>` to use a temporary rules file (hidden in normal use).
+
 ### 3. Inject variables into your **parent shell** (`--export`)
 
 `--export` prints eval-safe assignment lines. Run VisioFlow in a **subshell** and apply the output in the parent.
@@ -167,6 +191,80 @@ visioflow rule set-action asset --exec /usr/local/bin/handle-asset.sh
 ```
 
 When you use `capture --trigger asset` (without `--ipc-socket`), VisioFlow runs that executable **after** routing, with all resolved variables in the child environment. The script file is never modified.
+
+### 5. Install double-click shortcuts (Windows)
+
+Generate launchers and clickable shortcuts for common scan flows:
+
+```powershell
+.\scripts\install-shortcuts.ps1
+```
+
+This creates:
+
+- `%APPDATA%\VisioFlow\launchers\scan-auto.cmd`
+- `%APPDATA%\VisioFlow\launchers\scan-copy.cmd`
+- `%APPDATA%\VisioFlow\launchers\scan-plain.cmd`
+- Desktop shortcuts: `VisioFlow Scan (Auto|Copy|Plain)`
+- Start Menu shortcuts under `Programs\VisioFlow`
+
+Modes:
+
+- `scan-auto` → `capture --source snip` (auto-route)
+- `scan-copy` → `capture --source snip --trigger copy`
+- `scan-plain` → `capture --source snip --trigger plain --action stdout`
+
+Useful flags:
+
+```powershell
+# Choose a specific binary
+.\scripts\install-shortcuts.ps1 -BinPath .\target\release\visioflow.exe
+
+# Overwrite existing wrappers/shortcuts
+.\scripts\install-shortcuts.ps1 -Force
+```
+
+You can bind hotkeys in AutoHotkey/PowerToys to the generated `.cmd` launchers.
+
+---
+
+## Capture routing (v2)
+
+After `rule init-defaults`, omitting `--trigger` **auto-routes** the decoded payload: stock rules with `auto_compatible: true` are scanned by ascending `priority`; the first match wins and runs its actions (exec script and/or `--wifi-connect`).
+
+```powershell
+# Auto-route URL QRs (default snip UX — copies on no match)
+visioflow capture --source snip
+
+# Auto but never auto-join WiFi
+visioflow capture --source snip --except wifi
+
+# Corporate asset tag — explicit rule only (not in auto pool)
+visioflow capture --source snip --trigger asset
+
+# Mismatch still copies (default)
+# stderr: visioflow: rule "asset" did not match; copied payload to clipboard
+
+# Strict automation: no copy on mismatch
+visioflow capture --source snip --trigger asset --on-mismatch none
+
+# Never run any rule — copy only
+visioflow capture --source snip --trigger copy
+
+# Debug: print payload to stdout on purpose
+visioflow capture --source snip --trigger plain --action stdout
+```
+
+| Flag | Default | Purpose |
+|---|---|---|
+| `--trigger <NAME>` | *(omit = auto)* | Explicit rule, or builtin `copy` / `plain` |
+| `--except <NAME>` | — | Exclude rule(s) from auto scan (repeatable) |
+| `--only <NAME>` | — | Whitelist for auto scan (repeatable) |
+| `--on-mismatch <copy\|none>` | `copy` | After routing failure, copy payload or exit strict |
+
+**Human-first default:** successful routing runs actions; failures **copy** the payload and print a stderr notice (unless `--silent`). Use `--action stdout` only for scripting — not the default snip experience.
+
+Full routing spec: [`Routing-And-Default-Rules.md`](Routing-And-Default-Rules.md).
 
 ---
 
@@ -259,7 +357,7 @@ visioflow --ipc-socket /tmp/my-visioflow.sock rule execute asset --payload 'ASSE
 
 ### CLI via daemon
 
-When `--ipc-socket` is set, `rule execute` and `capture --trigger` delegate to the daemon (same semantics as local routing, including native parsers and optional exec). Reload the daemon after editing `rules.json` on disk:
+When `--ipc-socket` is set, `rule execute` and `capture --trigger` delegate to the daemon (same semantics as local routing, including native parsers and optional exec). **Auto-routing** (omitting `--trigger`) runs locally in the CLI today — daemon `execute_rule` IPC messages still require an explicit rule name. Reload the daemon after editing `rules.json` on disk:
 
 ```powershell
 visioflow daemon reload
@@ -278,6 +376,7 @@ Wire format details: [`IPC_PROTOCOL.md`](IPC_PROTOCOL.md).
 | `rule config <NAME> --regex <PAT> [--map G:VAR ...]` | Set regex and optional capture mappings |
 | `rule set-action <NAME> [--exec <PATH>] [--wifi-connect]` | Script and/or OS WiFi connect after route |
 | `rule execute <NAME> --payload <STR> [--no-exec]` | Apply rule; spawns `--exec` unless `--no-exec` |
+| `rule init-defaults [--merge] [--force]` | Install stock rules from `assets/default-rules.json` |
 | `rule delete <NAME>` | Remove a rule from the JSON store |
 
 You can also edit `rules.json` directly (same schema as `rule list --output json`). After manual edits, run `visioflow daemon reload` if a daemon is running so it picks up changes from disk.
@@ -329,6 +428,9 @@ Rules are stored as a single JSON object: **keys are rule names**, values are ru
 | `regex` | no | Rust regex; omit for native-parser-only rules (e.g. WiFi) |
 | `captures` | no | Map capture group → env suffix (`asset` → `QR_VAR_ASSET`) |
 | `exec` | no | Script path run after a successful route |
+| `wifi_connect` | no | When true, OS WiFi join from `QR_NATIVE_WIFI_*` after route |
+| `auto_compatible` | no | When true, rule participates in auto scan (default `false` for user rules) |
+| `priority` | no | Auto-scan order; lower = tried first (default `100`) |
 
 **Escaping**
 
@@ -433,9 +535,10 @@ visioflow daemon start --hidden
 
 ```powershell
 .\scripts\smoke-router.ps1
+.\scripts\smoke-default-rules.ps1
 ```
 
-Confirms tests, build, rule workflow, and `--export bash` in one pass.
+Confirms tests, build, rule workflow, `--export bash`, and stock default rules in one pass.
 
 ---
 
@@ -460,6 +563,7 @@ Confirms tests, build, rule workflow, and `--export bash` in one pass.
 | [`Architecture.md`](Architecture.md) | CLI shape, TDD protocol, daemon design |
 | [`ENGINE_RULES.md`](ENGINE_RULES.md) | Variable hierarchy, sandbox rules, optical pipeline |
 | [`IPC_PROTOCOL.md`](IPC_PROTOCOL.md) | NDJSON messages, request/response types |
+| [`Routing-And-Default-Rules.md`](Routing-And-Default-Rules.md) | v2 auto-routing, default rule pack, builtins, copy fallback |
 | [`Handoff-Router-Phase.md`](Handoff-Router-Phase.md) | Phase context and implementation status |
 | [`Rust OpenCV QR Scanning Architecture.md`](Rust%20OpenCV%20QR%20Scanning%20Architecture.md) | Webcam / OpenCV pipeline (webcam only) |
 | [`PLATFORM_CI.md`](PLATFORM_CI.md) | Cross-platform CI and IPC conventions |

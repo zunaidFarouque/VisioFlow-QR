@@ -156,6 +156,47 @@ fn handler_execute_wifi_connect_missing_ssid_returns_error() {
 }
 
 #[test]
+fn handler_execute_wifi_connect_with_valid_payload_resolves_native_vars() {
+    let dir = TempDir::new().expect("tempdir");
+    let path = dir.path().join("rules.json");
+    let store = FileRuleStore::new(path);
+    let mut rules = BTreeMap::new();
+    let mut rule = Rule::new("wifi");
+    rule.wifi_connect = true;
+    rules.insert("wifi".to_owned(), rule);
+    store.save_all(&rules).expect("save");
+
+    let mut handler = DaemonHandler::new(store).expect("handler");
+    let response = handler.handle(
+        ClientMessage::ExecuteRule {
+            id: 9,
+            name: "wifi".into(),
+            payload: "WIFI:T:WPA;S:VisioFlowIpcTest;P:secret;;".into(),
+        },
+        false,
+    );
+
+    match response {
+        ServerMessage::RuleResult { id, vars, exit_code } => {
+            assert_eq!(id, 9);
+            assert_eq!(
+                vars.get("QR_NATIVE_WIFI_SSID").map(String::as_str),
+                Some("VisioFlowIpcTest")
+            );
+            assert!(vars.contains_key("QR_NATIVE_WIFI_PASSWORD"));
+            assert!(exit_code.is_none());
+        }
+        ServerMessage::Error { message, .. } => {
+            assert!(
+                message.contains("wifi connect failed"),
+                "unexpected error: {message}"
+            );
+        }
+        other => panic!("expected RuleResult or wifi Error, got {other:?}"),
+    }
+}
+
+#[test]
 fn handler_reload_refreshes_rules_from_disk() {
     let dir = TempDir::new().expect("tempdir");
     let path = dir.path().join("rules.json");

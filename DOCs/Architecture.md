@@ -8,6 +8,7 @@ VisioFlow is an "Optical Automation Engine" and "Visual Payload Router." It brid
 * **Daemon:** Pure-Rust background service (`visioflow daemon`) — **implemented** (`crates/visioflow-cli/src/commands/daemon.rs`, IPC in `visioflow-core`). Tauri headless wrapper is **optional / deferred**; not required for production use.
 * **Cross-Platform:** Windows and Linux (macOS is explicitly out of scope).
 * **User guide:** [`USER_GUIDE.md`](USER_GUIDE.md) — install, capture, rules, export, daemon, troubleshooting.
+* **Routing (planned):** [`Routing-And-Default-Rules.md`](Routing-And-Default-Rules.md) — auto-routing, default rules, builtins, copy fallback.
 * **Strict Constraints:**
   * **Zero Bloat (static capture):** Snip and file capture remain native Rust (`rqrr`, Otsu/Median preprocessing).
   * **Webcam Optical Engine:** Live webcam capture uses OpenCV `VideoCapture` with a spin-thread `grab()` loop, WeChat CNN decoding, and temporal exposure bracketing. See [`DOCs/Rust OpenCV QR Scanning Architecture.md`](Rust%20OpenCV%20QR%20Scanning%20Architecture.md).

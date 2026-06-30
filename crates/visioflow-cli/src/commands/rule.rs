@@ -1,8 +1,11 @@
+use std::collections::BTreeMap;
+use std::fs;
 use std::path::{Path, PathBuf};
 
 use visioflow_core::{
-    FileRuleStore, ResolvedVars, RoutedPayload, Rule, RuleEngine, RuleError, RuleResult,
-    RuleStore, VisioFlowError,
+    default_rules_asset_path, is_reserved_rule_name, resolve_share_path, FileRuleStore,
+    ResolvedVars, RoutedPayload, Rule, RuleEngine, RuleError, RuleResult, RuleStore,
+    VisioFlowError,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -31,10 +34,56 @@ pub fn open_store(path: Option<PathBuf>) -> FileRuleStore {
 }
 
 pub fn rule_create(store: &dyn RuleStore, name: &str) -> RuleResult<()> {
+    if is_reserved_rule_name(name) {
+        return Err(RuleError::StoreIo(format!("reserved rule name: {name}")));
+    }
     if store.get(name).is_ok() {
         return Err(RuleError::StoreIo(format!("rule already exists: {name}")));
     }
     store.upsert(&Rule::new(name))
+}
+
+fn load_default_rules() -> RuleResult<BTreeMap<String, Rule>> {
+    let path = default_rules_asset_path();
+    let contents = fs::read_to_string(&path).map_err(|e| {
+        RuleError::StoreIo(format!("read default rules at {}: {e}", path.display()))
+    })?;
+    serde_json::from_str(&contents)
+        .map_err(|e| RuleError::StoreParse(format!("parse default rules: {e}")))
+}
+
+fn rewrite_rule_exec_paths(rules: &mut BTreeMap<String, Rule>) {
+    for rule in rules.values_mut() {
+        if let Some(exec) = rule.exec.clone() {
+            let relative = exec.to_string_lossy();
+            rule.exec = Some(resolve_share_path(&relative));
+        }
+    }
+}
+
+/// Install stock default rules from `assets/default-rules.json`.
+pub fn rule_init_defaults(store: &dyn RuleStore, merge: bool, force: bool) -> RuleResult<()> {
+    let mut defaults = load_default_rules()?;
+    rewrite_rule_exec_paths(&mut defaults);
+
+    if force {
+        store.save_all(&defaults)?;
+        return Ok(());
+    }
+
+    let mut existing = store.load_all()?;
+
+    if merge {
+        for (name, rule) in defaults {
+            existing.entry(name).or_insert(rule);
+        }
+    } else {
+        for (name, rule) in defaults {
+            existing.insert(name, rule);
+        }
+    }
+
+    store.save_all(&existing)
 }
 
 pub fn rule_config(
@@ -202,6 +251,62 @@ mod tests {
         assert_eq!(rule.name, "demo");
         assert!(rule.regex.is_none());
         assert!(rule.exec.is_none());
+    }
+
+    #[test]
+    fn rule_create_rejects_reserved_name() {
+        let (_dir, store) = temp_store();
+        let err = rule_create(&store, "copy").expect_err("reserved");
+        assert!(matches!(err, RuleError::StoreIo(_)));
+        assert!(err.to_string().contains("reserved"));
+    }
+
+    #[test]
+    fn rule_init_defaults_installs_stock_rules_with_resolved_exec() {
+        let (_dir, store) = temp_store();
+        rule_init_defaults(&store, false, false).expect("init-defaults");
+
+        let rules = store.load_all().expect("load");
+        assert!(rules.contains_key("url"));
+        assert!(rules.contains_key("wifi"));
+        assert!(rules.contains_key("plain"));
+
+        let url = rules.get("url").expect("url rule");
+        assert_eq!(url.priority, 10);
+        assert!(url.auto_compatible);
+        let exec = url.exec.as_ref().expect("url exec");
+        assert!(exec.is_file(), "exec should resolve to existing script: {}", exec.display());
+        #[cfg(windows)]
+        assert!(exec.extension().is_some_and(|e| e == "ps1"));
+        #[cfg(not(windows))]
+        assert!(exec.extension().is_some_and(|e| e == "sh"));
+    }
+
+    #[test]
+    fn rule_init_defaults_merge_skips_existing_names() {
+        let (_dir, store) = temp_store();
+        let mut custom = Rule::new("url");
+        custom.regex = Some("^custom$".to_owned());
+        store.upsert(&custom).expect("seed custom url");
+
+        rule_init_defaults(&store, true, false).expect("merge");
+
+        let rules = store.load_all().expect("load");
+        let url = rules.get("url").expect("url");
+        assert_eq!(url.regex.as_deref(), Some("^custom$"));
+        assert!(rules.contains_key("wifi"));
+    }
+
+    #[test]
+    fn rule_init_defaults_force_replaces_entire_store() {
+        let (_dir, store) = temp_store();
+        store.upsert(&Rule::new("custom-only")).expect("seed");
+
+        rule_init_defaults(&store, false, true).expect("force");
+
+        let rules = store.load_all().expect("load");
+        assert!(!rules.contains_key("custom-only"));
+        assert!(rules.contains_key("url"));
     }
 
     #[test]
