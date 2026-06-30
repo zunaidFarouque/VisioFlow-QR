@@ -51,7 +51,7 @@ cargo build --release -p visioflow-cli
    - `version`
    - `architecture.64bit.url` (release download URL)
    - `architecture.64bit.hash` (SHA256 from build script output; use `sha256:<hash>` for Scoop)
-4. Copy `scripts/packaging/scoop/visioflow.json` into your Scoop bucket repo and publish (see `scripts/packaging/scoop/README.md` for bucket layout).
+4. Copy `scripts/packaging/scoop/visioflow.json` into [Zunaid-Scoop-Bucket](https://github.com/zunaidFarouque/Zunaid-Scoop-Bucket) at `bucket/visioflow.json` and push (see `scripts/packaging/scoop/README.md`).
 
 Scoop manifest path: `scripts/packaging/scoop/visioflow.json`
 

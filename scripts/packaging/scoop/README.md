@@ -1,29 +1,14 @@
 # Scoop bucket layout
 
-Copy `visioflow.json` into a Scoop bucket repository:
+Canonical manifest lives here: `scripts/packaging/scoop/visioflow.json`
 
-```
-visioflow-bucket/
-  bucket.json
-  visioflow.json
-```
-
-`bucket.json` example:
-
-```json
-{
-  "version": 1,
-  "description": "VisioFlow QR visual payload router",
-  "homepage": "https://github.com/zunaidFarouque/VisioFlow-QR",
-  "license": "MIT"
-}
-```
+Published in the personal bucket: [Zunaid-Scoop-Bucket](https://github.com/zunaidFarouque/Zunaid-Scoop-Bucket) (`bucket/visioflow.json`).
 
 End users:
 
 ```powershell
-scoop bucket add visioflow-bucket https://github.com/<org>/visioflow-bucket
-scoop install visioflow
+scoop bucket add zunaid-scoop-bucket https://github.com/zunaidFarouque/Zunaid-Scoop-Bucket
+scoop install zunaid-scoop-bucket/visioflow
 ```
 
 `post_install` seeds rules, syncs them to `%APPDATA%\visioflow\rules.json`, and runs `install-shortcuts.ps1` from the release zip. No manual bootstrap step.

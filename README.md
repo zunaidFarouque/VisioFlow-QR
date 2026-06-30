@@ -36,7 +36,7 @@ macOS is out of scope.
 
 Pick one path (details in [Getting Started](DOCs/Getting-Started.md) and [Distribution](DOCs/Distribution-Windows.md)):
 
-1. **Scoop** — `scoop bucket add` + `scoop install visioflow` (`scripts/packaging/scoop/visioflow.json`; bootstrap is automatic)
+1. **Scoop** — [Zunaid-Scoop-Bucket](https://github.com/zunaidFarouque/Zunaid-Scoop-Bucket): `scoop bucket add zunaid-scoop-bucket https://github.com/zunaidFarouque/Zunaid-Scoop-Bucket` then `scoop install zunaid-scoop-bucket/visioflow` (bootstrap is automatic)
 2. **Traditional** — `scripts/install-traditional.ps1`
 3. **Portable zip** — extract release zip, run `bootstrap-portable.ps1`
 

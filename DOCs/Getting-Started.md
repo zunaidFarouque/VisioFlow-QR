@@ -21,11 +21,11 @@ Three supported paths — use one:
 
 ### 1. Scoop portable (recommended)
 
-Manifest: `scripts/packaging/scoop/visioflow.json` (bucket layout: `scripts/packaging/scoop/README.md`). Install runs bootstrap automatically.
+Bucket: [Zunaid-Scoop-Bucket](https://github.com/zunaidFarouque/Zunaid-Scoop-Bucket). Manifest source: `scripts/packaging/scoop/visioflow.json`. Install runs bootstrap automatically.
 
 ```powershell
-scoop bucket add visioflow-bucket <your-bucket-url>
-scoop install visioflow
+scoop bucket add zunaid-scoop-bucket https://github.com/zunaidFarouque/Zunaid-Scoop-Bucket
+scoop install zunaid-scoop-bucket/visioflow
 ```
 
 ### 2. Traditional machine-local install

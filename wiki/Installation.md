@@ -15,13 +15,13 @@ Windows-first install guide. For Linux router-only usage, build with `--no-defau
 
 ## Option 1: Scoop (recommended)
 
-Manifest: `scripts/packaging/scoop/visioflow.json` in the [main repository](https://github.com/zunaidFarouque/VisioFlow-QR). Bucket layout: `scripts/packaging/scoop/README.md`.
+Bucket: [Zunaid-Scoop-Bucket](https://github.com/zunaidFarouque/Zunaid-Scoop-Bucket). Manifest source in app repo: `scripts/packaging/scoop/visioflow.json`.
 
 `scoop install` runs bootstrap automatically — shortcuts, rules seed, and sync to `%APPDATA%\visioflow\rules.json`. User rules persist under `~/scoop/persist/visioflow/data/` across upgrades.
 
 ```powershell
-scoop bucket add visioflow-bucket <your-bucket-url>
-scoop install visioflow
+scoop bucket add zunaid-scoop-bucket https://github.com/zunaidFarouque/Zunaid-Scoop-Bucket
+scoop install zunaid-scoop-bucket/visioflow
 ```
 
 **Uninstall:** removes Desktop/Start Menu shortcuts and `%APPDATA%\VisioFlow\launchers`. Rules stay in Scoop persist unless you run `scoop uninstall -p visioflow`. The `visioflow:` toast protocol registry in HKCU is left in place (refreshed on the next `visioflow notify test`).
