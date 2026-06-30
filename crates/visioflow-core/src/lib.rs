@@ -1,3 +1,4 @@
+pub mod airgap;
 pub mod capture;
 pub mod decode;
 pub mod error;
@@ -11,6 +12,7 @@ pub mod rules;
 pub mod sys;
 pub mod traits;
 
+pub use airgap::{airgap_active, enforce_airgap_policy};
 pub use capture::{
     decode_captured_frame, decode_captured_frame_live, decode_captured_frame_live_with_profile,
     CaptureEngine,

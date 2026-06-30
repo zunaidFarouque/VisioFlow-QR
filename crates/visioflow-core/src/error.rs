@@ -25,6 +25,12 @@ pub enum VisioFlowError {
 
     #[error("image error: {0}")]
     Image(#[from] image::ImageError),
+
+    #[error(
+        "air-gap mode: refusing to start; network telemetry (OTLP) is not permitted. \
+         Unset VISIOFLOW_AIRGAP or omit --disable-telemetry."
+    )]
+    AirGap,
 }
 
 pub type Result<T> = std::result::Result<T, VisioFlowError>;

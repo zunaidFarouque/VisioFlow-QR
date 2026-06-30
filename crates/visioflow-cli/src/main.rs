@@ -2,8 +2,8 @@ use std::path::PathBuf;
 
 use clap::{Parser, Subcommand, ValueEnum};
 use visioflow_cli::commands::capture::{
-    route_capture_trigger, run_capture, spawn_rule_exec, write_capture_output, CaptureAction,
-    CaptureArgs, CaptureFilter, CaptureSource, ExposureBracketMode, PreviewPosition,
+    apply_capture_halts, route_capture_trigger, run_capture, spawn_rule_exec, write_capture_output,
+    CaptureAction, CaptureArgs, CaptureFilter, CaptureSource, ExposureBracketMode, PreviewPosition,
 };
 use visioflow_cli::commands::daemon::{
     daemon_reload_ipc, daemon_start, daemon_status, daemon_stop, default_pid_path,
@@ -45,6 +45,10 @@ struct Cli {
 
     #[arg(long, global = true)]
     ipc_socket: Option<String>,
+
+    /// Air-gap mode: blocks network telemetry (OTLP); hidden until telemetry ships
+    #[arg(long, global = true, hide = true)]
+    disable_telemetry: bool,
 
     #[command(subcommand)]
     command: Commands,
@@ -121,6 +125,14 @@ enum Commands {
         #[arg(long)]
         trigger: Option<String>,
 
+        /// Interactive list when multiple payloads are decoded
+        #[arg(long)]
+        select: bool,
+
+        /// Confirm payload on stdin before action/trigger
+        #[arg(long)]
+        interactive: bool,
+
         /// Path to rules JSON store (integration tests only)
         #[arg(long, hide = true)]
         store: Option<PathBuf>,
@@ -192,6 +204,10 @@ enum RuleCommands {
 
         #[arg(long)]
         payload: String,
+
+        /// Resolve and print variables without spawning the rule exec action
+        #[arg(long)]
+        no_exec: bool,
     },
 }
 
@@ -219,6 +235,8 @@ fn write_export_output(
 
 fn run() -> visioflow_core::error::Result<()> {
     let cli = Cli::parse();
+
+    visioflow_core::enforce_airgap_policy(cli.disable_telemetry)?;
 
     if cli.verbose && !cli.silent {
         eprintln!("visioflow starting");
@@ -254,11 +272,20 @@ fn run() -> visioflow_core::error::Result<()> {
                 RuleCommands::SetAction { name, exec } => {
                     rule_set_action(&store, &name, &exec).map_err(map_rule_error)?;
                 }
-                RuleCommands::Execute { name, payload } => {
+                RuleCommands::Execute {
+                    name,
+                    payload,
+                    no_exec,
+                } => {
                     let resolved = if let Some(ref socket) = ipc_socket {
                         rule_execute_via_ipc(socket, &name, &payload)?
                     } else {
-                        rule_execute(&store, &name, &payload).map_err(map_rule_error)?
+                        let routed =
+                            rule_execute(&store, &name, &payload).map_err(map_rule_error)?;
+                        if !no_exec {
+                            spawn_rule_exec(&routed.rule, &routed.vars).map_err(map_rule_error)?;
+                        }
+                        routed.vars
                     };
                     if let Some(export_fmt) = cli.export {
                         let vars = visioflow_core::vars_from_resolved(&resolved);
@@ -324,6 +351,8 @@ fn run() -> visioflow_core::error::Result<()> {
             decode_interval_ms,
             exposure_bracket,
             trigger,
+            select,
+            interactive,
             store: rule_store,
         } => {
             let payloads = run_capture(CaptureArgs {
@@ -341,7 +370,19 @@ fn run() -> visioflow_core::error::Result<()> {
                 exposure_bracket,
                 trigger: trigger.clone(),
                 rule_store: rule_store.clone(),
+                select,
+                interactive,
             })?;
+
+            let mut stdin = std::io::stdin().lock();
+            let mut stderr = std::io::stderr().lock();
+            let payloads = apply_capture_halts(
+                payloads,
+                select,
+                interactive,
+                &mut stdin,
+                &mut stderr,
+            )?;
 
             if let Some(rule_name) = trigger {
                 if cli.verbose && !cli.silent {
@@ -499,5 +540,54 @@ mod tests {
             }
             Commands::Rule { .. } | Commands::Daemon { .. } => {}
         }
+    }
+
+    #[test]
+    fn capture_accepts_select_and_interactive_flags() {
+        let cli = Cli::try_parse_from([
+            "visioflow",
+            "capture",
+            "--source",
+            "snip",
+            "--action",
+            "stdout",
+            "--select",
+            "--interactive",
+        ])
+        .expect("cli should parse");
+
+        match cli.command {
+            Commands::Capture {
+                select,
+                interactive,
+                ..
+            } => {
+                assert!(select);
+                assert!(interactive);
+            }
+            Commands::Rule { .. } | Commands::Daemon { .. } => panic!("expected capture"),
+        }
+    }
+
+    #[test]
+    fn cli_parses_hidden_disable_telemetry_flag() {
+        let cli = Cli::try_parse_from([
+            "visioflow",
+            "--disable-telemetry",
+            "capture",
+            "--source",
+            "snip",
+            "--action",
+            "stdout",
+        ])
+        .expect("cli should parse");
+
+        assert!(cli.disable_telemetry);
+    }
+
+    #[test]
+    fn airgap_policy_blocks_run_when_flag_set() {
+        let err = visioflow_core::enforce_airgap_policy(true).expect_err("expected air-gap");
+        assert!(matches!(err, visioflow_core::VisioFlowError::AirGap));
     }
 }

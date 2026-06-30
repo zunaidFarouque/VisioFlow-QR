@@ -1,17 +1,17 @@
 use clap::ValueEnum;
-use std::process::Command;
 use visioflow_core::capture::CaptureEngine;
 use visioflow_core::decode::RqrrDecoder;
 use visioflow_core::error::Result;
 use visioflow_core::traits::{FrameSource, OpticalFilterKind};
 use visioflow_core::{
-    FileRuleStore, ResolvedVars, RoutedPayload, Rule, RuleEngine, RuleError, RuleResult,
-    RuleStore,
+    FileRuleStore, RoutedPayload, RuleEngine, RuleError, RuleResult, RuleStore,
 };
 
 use crate::capture::{FileFrameSource, SnipFrameSource};
 #[cfg(feature = "opencv-webcam")]
 use crate::webcam_session::{capture_webcam_with_preview, WebcamTiming, DEFAULT_WEBCAM_TIMEOUT_SECS};
+
+pub use crate::commands::exec::spawn_rule_exec;
 
 #[cfg(not(feature = "opencv-webcam"))]
 const DEFAULT_WEBCAM_TIMEOUT_SECS: u64 = 20;
@@ -76,6 +76,8 @@ pub struct CaptureArgs {
     pub exposure_bracket: ExposureBracketMode,
     pub trigger: Option<String>,
     pub rule_store: Option<std::path::PathBuf>,
+    pub select: bool,
+    pub interactive: bool,
 }
 
 impl CaptureArgs {
@@ -163,6 +165,216 @@ pub fn write_capture_output(payloads: &[String], action: CaptureAction, silent: 
     Ok(())
 }
 
+/// When `--select` is set and multiple payloads were decoded, prompt on stdin for one choice.
+pub fn select_payload_if_needed<R: std::io::BufRead, W: std::io::Write>(
+    payloads: &[String],
+    select: bool,
+    stdin: &mut R,
+    prompt: &mut W,
+) -> Result<Vec<String>> {
+    if !select || payloads.len() <= 1 {
+        return Ok(payloads.to_vec());
+    }
+
+    writeln!(prompt, "Multiple payloads detected. Select one:")?;
+    for (index, payload) in payloads.iter().enumerate() {
+        writeln!(prompt, "  [{}] {}", index + 1, payload)?;
+    }
+    write!(
+        prompt,
+        "Enter number (1-{}): ",
+        payloads.len()
+    )?;
+    prompt.flush()?;
+
+    let mut line = String::new();
+    stdin.read_line(&mut line).map_err(visioflow_core::VisioFlowError::Io)?;
+
+    let choice = line.trim();
+    let index = choice
+        .parse::<usize>()
+        .ok()
+        .and_then(|n| n.checked_sub(1))
+        .filter(|&i| i < payloads.len())
+        .ok_or_else(|| {
+            visioflow_core::VisioFlowError::Capture(format!(
+                "invalid selection '{choice}'; expected 1-{}",
+                payloads.len()
+            ))
+        })?;
+
+    Ok(vec![payloads[index].clone()])
+}
+
+/// When `--interactive` is set, print payload(s) and require `[y/N]` confirmation on stdin.
+pub fn confirm_capture_interactive<R: std::io::BufRead, W: std::io::Write>(
+    payloads: &[String],
+    interactive: bool,
+    stdin: &mut R,
+    prompt: &mut W,
+) -> Result<bool> {
+    if !interactive {
+        return Ok(true);
+    }
+
+    if payloads.is_empty() {
+        return Ok(false);
+    }
+
+    writeln!(prompt, "Decoded payload:")?;
+    for payload in payloads {
+        writeln!(prompt, "  {payload}")?;
+    }
+    write!(prompt, "Proceed? [y/N]: ")?;
+    prompt.flush()?;
+
+    let mut line = String::new();
+    stdin.read_line(&mut line).map_err(visioflow_core::VisioFlowError::Io)?;
+
+    Ok(matches!(line.trim(), "y" | "Y" | "yes" | "Yes" | "YES"))
+}
+
+/// Apply `--select` then `--interactive` halts before action/trigger/export.
+pub fn apply_capture_halts<R: std::io::BufRead, W: std::io::Write>(
+    payloads: Vec<String>,
+    select: bool,
+    interactive: bool,
+    stdin: &mut R,
+    prompt: &mut W,
+) -> Result<Vec<String>> {
+    let selected = select_payload_if_needed(&payloads, select, stdin, prompt)?;
+    if !confirm_capture_interactive(&selected, interactive, stdin, prompt)? {
+        return Err(visioflow_core::VisioFlowError::Capture(
+            "capture cancelled by user".into(),
+        ));
+    }
+    Ok(selected)
+}
+
+#[cfg(test)]
+mod halt_tests {
+    use super::*;
+    use std::io::Cursor;
+
+    #[test]
+    fn select_payload_skips_prompt_for_single_payload() {
+        let payloads = vec!["only-one".to_owned()];
+        let mut stdin = Cursor::new(Vec::new());
+        let mut prompt = Vec::new();
+
+        let out = select_payload_if_needed(&payloads, true, &mut stdin, &mut prompt)
+            .expect("select");
+
+        assert_eq!(out, payloads);
+        assert!(prompt.is_empty());
+    }
+
+    #[test]
+    fn select_payload_skips_prompt_when_disabled() {
+        let payloads = vec!["a".to_owned(), "b".to_owned()];
+        let mut stdin = Cursor::new(Vec::new());
+        let mut prompt = Vec::new();
+
+        let out = select_payload_if_needed(&payloads, false, &mut stdin, &mut prompt)
+            .expect("select");
+
+        assert_eq!(out, payloads);
+        assert!(prompt.is_empty());
+    }
+
+    #[test]
+    fn select_payload_picks_numbered_choice() {
+        let payloads = vec!["first".to_owned(), "second".to_owned(), "third".to_owned()];
+        let mut stdin = Cursor::new(b"2\n");
+        let mut prompt = Vec::new();
+
+        let out = select_payload_if_needed(&payloads, true, &mut stdin, &mut prompt)
+            .expect("select");
+
+        assert_eq!(out, vec!["second".to_owned()]);
+        let menu = String::from_utf8(prompt).expect("utf8");
+        assert!(menu.contains("[1] first"));
+        assert!(menu.contains("[2] second"));
+        assert!(menu.contains("Enter number (1-3)"));
+    }
+
+    #[test]
+    fn select_payload_rejects_invalid_choice() {
+        let payloads = vec!["a".to_owned(), "b".to_owned()];
+        let mut stdin = Cursor::new(b"9\n");
+        let mut prompt = Vec::new();
+
+        let err = select_payload_if_needed(&payloads, true, &mut stdin, &mut prompt)
+            .expect_err("invalid");
+
+        assert!(err.to_string().contains("invalid selection"));
+    }
+
+    #[test]
+    fn confirm_interactive_disabled_proceeds() {
+        let payloads = vec!["x".to_owned()];
+        let mut stdin = Cursor::new(Vec::new());
+        let mut prompt = Vec::new();
+
+        let proceed = confirm_capture_interactive(&payloads, false, &mut stdin, &mut prompt)
+            .expect("confirm");
+
+        assert!(proceed);
+        assert!(prompt.is_empty());
+    }
+
+    #[test]
+    fn confirm_interactive_accepts_y() {
+        let payloads = vec!["payload-a".to_owned()];
+        let mut stdin = Cursor::new(b"y\n");
+        let mut prompt = Vec::new();
+
+        let proceed = confirm_capture_interactive(&payloads, true, &mut stdin, &mut prompt)
+            .expect("confirm");
+
+        assert!(proceed);
+        let text = String::from_utf8(prompt).expect("utf8");
+        assert!(text.contains("payload-a"));
+        assert!(text.contains("[y/N]"));
+    }
+
+    #[test]
+    fn confirm_interactive_defaults_no_on_empty_input() {
+        let payloads = vec!["payload-b".to_owned()];
+        let mut stdin = Cursor::new(b"\n");
+        let mut prompt = Vec::new();
+
+        let proceed = confirm_capture_interactive(&payloads, true, &mut stdin, &mut prompt)
+            .expect("confirm");
+
+        assert!(!proceed);
+    }
+
+    #[test]
+    fn apply_capture_halts_select_then_confirm() {
+        let payloads = vec!["one".to_owned(), "two".to_owned()];
+        let mut stdin = Cursor::new(b"2\nyes\n");
+        let mut prompt = Vec::new();
+
+        let out = apply_capture_halts(payloads, true, true, &mut stdin, &mut prompt)
+            .expect("halts");
+
+        assert_eq!(out, vec!["two".to_owned()]);
+    }
+
+    #[test]
+    fn apply_capture_halts_cancelled_on_interactive_no() {
+        let payloads = vec!["only".to_owned()];
+        let mut stdin = Cursor::new(b"n\n");
+        let mut prompt = Vec::new();
+
+        let err = apply_capture_halts(payloads, false, true, &mut stdin, &mut prompt)
+            .expect_err("cancelled");
+
+        assert!(err.to_string().contains("cancelled"));
+    }
+}
+
 /// Test hook: run capture with an injected frame source.
 pub fn run_capture_with_source<S: FrameSource>(
     source: S,
@@ -214,29 +426,15 @@ pub fn map_trigger_error(
     ))
 }
 
-/// Spawn the rule's exec action with resolved variables in the child environment.
-pub fn spawn_rule_exec(rule: &Rule, vars: &ResolvedVars) -> RuleResult<()> {
-    let Some(exec) = rule.exec.as_ref() else {
-        return Ok(());
-    };
-
-    let mut cmd = Command::new(exec);
-    for (key, value) in vars.iter() {
-        cmd.env(key, value);
-    }
-
-    cmd.status()
-        .map_err(|e| RuleError::ExecFailed(e.to_string()))?;
-    Ok(())
-}
-
 #[cfg(test)]
 mod trigger_tests {
     use super::*;
     use std::fs;
     use std::path::Path;
     use tempfile::TempDir;
-    use visioflow_core::{apply_rule, merge_native_vars, resolve_payload_fully, Rule, RuleStore};
+    use visioflow_core::{
+        apply_rule, merge_native_vars, resolve_payload_fully, ResolvedVars, Rule, RuleStore,
+    };
 
     fn temp_store() -> (TempDir, FileRuleStore) {
         let dir = TempDir::new().expect("tempdir");

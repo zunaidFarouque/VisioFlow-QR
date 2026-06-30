@@ -34,10 +34,10 @@ pub fn parse_socket_name(path: &str) -> Result<Name<'static>> {
                 .map(|n| n.into_owned())
                 .map_err(|e| VisioFlowError::Ipc(format!("invalid pipe path: {e}")));
         }
-        return path
+        path
             .to_ns_name::<GenericNamespaced>()
             .map(|n| n.into_owned())
-            .map_err(|e| VisioFlowError::Ipc(format!("invalid socket name: {e}")));
+            .map_err(|e| VisioFlowError::Ipc(format!("invalid socket name: {e}")))
     }
 
     #[cfg(not(windows))]

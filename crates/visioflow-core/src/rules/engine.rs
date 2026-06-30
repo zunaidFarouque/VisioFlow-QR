@@ -1,6 +1,8 @@
 use regex::Regex;
 
-use crate::native::{NativeParser, UriParser, WifiParser};
+use crate::native::{
+    GeoParser, MailtoParser, NativeParser, TelParser, UriParser, VcardParser, WifiParser,
+};
 use crate::rules::error::{Result, RuleError};
 use crate::rules::model::{ResolvedVars, Rule};
 use crate::rules::store::RuleStore;
@@ -69,7 +71,14 @@ pub struct RoutedPayload {
 
 /// Merge built-in `QR_NATIVE_*` variables from protocol parsers into `resolved`.
 pub fn merge_native_vars(resolved: &mut ResolvedVars, payload: &str) {
-    const PARSERS: &[&dyn NativeParser] = &[&WifiParser, &UriParser];
+    const PARSERS: &[&dyn NativeParser] = &[
+        &WifiParser,
+        &UriParser,
+        &MailtoParser,
+        &TelParser,
+        &GeoParser,
+        &VcardParser,
+    ];
     for parser in PARSERS {
         for (key, value) in parser.parse(payload) {
             resolved.insert(key, value);

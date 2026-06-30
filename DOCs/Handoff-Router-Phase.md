@@ -1,6 +1,6 @@
 # VisioFlow — Handoff: Visual Payload Router Phase
 
-> **Purpose:** Context for starting the next development chapter after the capture engine (snip + webcam) MVP. Attach this file to a new AI conversation when implementing rules, export, IPC, and daemon.
+> **Purpose:** Handoff for continuing VisioFlow after router phase (rules, export, IPC, daemon, capture halts). Attach when implementing WiFi `SystemExecutor`, Tauri, or extra parsers.
 
 ---
 
@@ -18,6 +18,7 @@ It is **not** just a QR scanner.
 | [`ENGINE_RULES.md`](ENGINE_RULES.md) | `QR_RAW` / `QR_NATIVE_*` / `QR_VAR_*`, security sandbox, no script file mutation |
 | [`Rust OpenCV QR Scanning Architecture.md`](Rust%20OpenCV%20QR%20Scanning%20Architecture.md) | Webcam path only (already implemented) |
 | [`PLATFORM_CI.md`](PLATFORM_CI.md) | Cross-platform patterns, `interprocess` for IPC |
+| [`USER_GUIDE.md`](USER_GUIDE.md) | End-user kickstart: install, rules, export, daemon, troubleshooting |
 
 ---
 
@@ -46,7 +47,7 @@ models/                  # WeChat CNN models (.caffemodel gitignored)
 | `--output plain \| json` | Working |
 | `--input-image` (hidden) | Integration test hook |
 | Webcam tuning flags | `--preview-position`, `--preview-scale`, `--exposure-step-ms`, `--exposure-flush-grabs`, `--decode-interval-ms`, `--exposure-bracket auto\|on\|off` |
-| Tests | `cargo test` — core optical/decode tests + `capture_stdout` integration |
+| Tests | `cargo test` — core + `capture_stdout`, `capture_trigger`, `rule_execute` |
 
 ### Webcam architecture (completed — treat as stable)
 
@@ -65,24 +66,37 @@ cargo run --release -p visioflow-cli -- capture --source webcam --action stdout 
 
 ---
 
-## 4. What is stubbed / not built (this phase)
+## 4. Router phase status
 
-| Item | Current state |
+### Done (do not regress)
+
+| Item | Location |
 |---|---|
-| `--export bash\|ps1` | `main.rs` returns `UnsupportedAction` |
-| `--ipc-socket` | Same stub |
-| `rule` subcommand | Not in CLI (`create`, `config`, `execute`, `set-action`) |
-| `daemon` subcommand | Not in CLI (`start`, `stop`, `status`, `reload`) |
-| `capture --trigger`, `--select` | Not in CLI |
-| Rule storage / regex routing | Not in core |
-| IPC (named pipes / UDS) | Not started |
-| Tauri headless daemon | Planned in Architecture; **not in repo yet** |
+| Rule model + JSON store + regex / `QR_VAR_*` | `visioflow-core/src/rules/` |
+| `rule` CLI (`create`, `config`, `set-action`, `execute`) | `visioflow-cli/src/commands/rule.rs` |
+| `--export bash\|ps1` | `visioflow-core/src/export/`, wired in `main.rs` |
+| IPC (named pipes / UDS) + protocol | `visioflow-core/src/ipc/`, `DOCs/IPC_PROTOCOL.md` |
+| `daemon` CLI (`start`, `stop`, `status`, `reload`) | `visioflow-cli/src/commands/daemon.rs` |
+| `capture --trigger RULE` | `capture.rs` + IPC/local routing |
+| `capture --select` / `--interactive` | Multi-payload TUI + `[y/N]` confirm (`capture.rs`) |
+| Native parsers (URI, WiFi, mailto, tel, geo, vCard) | `visioflow-core/src/native/` |
+| Sensitive logging redaction | `visioflow-core/src/logging/` |
+| Air-gap startup guard | `visioflow-core/src/airgap.rs`, `--disable-telemetry` |
+| `rule execute --no-exec` + full native merge | `commands/rule.rs`, `commands/exec.rs` |
 
-### Existing extension points
+### Not built yet
 
-- `visioflow_core::sys::SystemExecutor` — platform trait (wifi stub only)
-- `visioflow_core::traits` — `FrameSource`, `PayloadDecoder`, `CnnQrDecoder`, `LiveFrameSource`, `ExposureHal`, `OpticalScanner`
-- `main.rs` — only `Commands::Capture` today; global flags `--export`, `--ipc-socket` parsed but rejected
+| Item | Notes |
+|---|---|
+| Tauri headless daemon | Deferred; pure-Rust daemon in repo |
+| WiFi `SystemExecutor` | `connect_wifi` stub in `sys/` |
+| OTLP / network telemetry | Air-gap hook exists; no telemetry crate yet |
+
+### Extension points
+
+- `visioflow_core::sys::SystemExecutor` — platform trait (wifi action stub)
+- `visioflow_core::traits` — optical / decode traits (stable)
+- Global `--ipc-socket` / `VISIOFLOW_IPC_SOCKET` — CLI ↔ daemon routing
 
 ---
 
@@ -98,18 +112,15 @@ cargo run --release -p visioflow-cli -- capture --source webcam --action stdout 
 ### `capture` (execution engine)
 
 - `--source <snip|webcam>`, `--filter <otsu|median>`, `--action <stdout|copy>`
-- `--trigger <RULE_NAME>` — not built
-- `--select` — interactive TUI when multiple payloads; not built
+- `--trigger <RULE_NAME>` — **done**
+- `--select` — interactive TUI when multiple payloads — **done**
+- `--interactive` — `[y/N]` confirm — **done**
 
-### `rule` (automation manager) — not built
+### `rule` (automation manager) — **done**
 
-- `create <NAME>`
-- `config <NAME> --regex <PAT>`
-- `config <NAME> --map <G:VAR>`
-- `execute <NAME> --payload <STR>`
-- `set-action <NAME> --exec <PATH>`
+- `create <NAME>`, `config <NAME> --regex`, `config <NAME> --map`, `execute <NAME> --payload`, `set-action <NAME> --exec`
 
-### `daemon` (background service) — not built
+### `daemon` (background service) — **done**
 
 - `start --hidden`, `stop`, `status`, `reload`
 
@@ -131,22 +142,16 @@ cargo run --release -p visioflow-cli -- capture --source webcam --action stdout 
 
 ---
 
-## 7. Suggested implementation order
+## 7. Suggested next work
 
-Agree on phasing in the first session. Recommended sequence:
-
-| Phase | Deliverable |
+| Priority | Deliverable |
 |---|---|
-| **A** | Rule model + persistence in `visioflow-core` (TOML/JSON under user config dir); unit tests for regex match + `QR_VAR_*` mapping |
-| **B** | `rule` CLI — `create`, `config`, `set-action`, `execute` (local, no daemon) |
-| **C** | `--export bash/ps1` — emit eval-safe env assignments from matched vars |
-| **D** | IPC protocol (newline-delimited JSON); traits `IpcClient` / `IpcServer` |
-| **E** | `daemon` subcommand — start/stop/status/reload; in-memory rules; CLI uses `--ipc-socket` |
-| **F** | `capture --trigger RULE` and `capture --select` (TUI halt when multiple payloads) |
+| **1** | WiFi `SystemExecutor::connect_wifi` (Windows + Linux) |
+| **2** | Rule actions that invoke `SystemExecutor` (e.g. auto-connect WiFi QR) |
+| **Later** | Tauri headless daemon (optional; Rust daemon already works) |
+| **Later** | OTLP telemetry with air-gap-aware init |
 
-**Recommendation:** Phases **A → B → C** before daemon/IPC so routing logic is fully unit-testable without sockets.
-
-**Open design choice:** Pure Rust daemon first vs Tauri headless (Architecture mentions Tauri). Start with Rust unless user specifies otherwise.
+Phases A–F (rules, export, IPC, daemon, `--trigger`, `--select`, `--interactive`) are complete.
 
 ---
 
@@ -181,4 +186,4 @@ Release binary (~19 MB standalone on Windows with static vcpkg triplet). WeChat 
 
 Copy and adapt:
 
-> Phase 1 of VisioFlow (capture: snip + webcam) is complete. Start the **visual payload router** chapter: implement rule management, regex routing, `QR_*` env mapping, `--export`, then IPC + `daemon` per `DOCs/Architecture.md` and `DOCs/ENGINE_RULES.md`. Follow TDD (traits → tests → impl). Do not refactor the webcam/OpenCV path unless strictly required. Read `DOCs/Handoff-Router-Phase.md` and propose a phased plan before coding.
+> Router phase is complete (rules, export, IPC, daemon, capture halts, native parsers, air-gap). Next: WiFi `SystemExecutor::connect_wifi` and rule actions that use it. Read `DOCs/Handoff-Router-Phase.md`, `DOCs/USER_GUIDE.md`. Follow TDD; do not refactor webcam/OpenCV unless required. Tauri daemon is deferred.

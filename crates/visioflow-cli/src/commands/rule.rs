@@ -1,8 +1,8 @@
 use std::path::{Path, PathBuf};
 
 use visioflow_core::{
-    FileRuleStore, PayloadRouter, ResolvedVars, Rule, RuleEngine, RuleError, RuleResult, RuleStore,
-    VisioFlowError,
+    FileRuleStore, ResolvedVars, RoutedPayload, Rule, RuleEngine, RuleError, RuleResult,
+    RuleStore, VisioFlowError,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -69,9 +69,13 @@ pub fn rule_set_action(store: &dyn RuleStore, name: &str, exec: &Path) -> RuleRe
     store.upsert(&rule)
 }
 
-pub fn rule_execute(store: &FileRuleStore, name: &str, payload: &str) -> RuleResult<ResolvedVars> {
+pub fn rule_execute(
+    store: &FileRuleStore,
+    name: &str,
+    payload: &str,
+) -> RuleResult<RoutedPayload> {
     let engine = RuleEngine::new(store.clone());
-    engine.route(name, payload)
+    engine.route_fully(name, payload)
 }
 
 pub fn write_resolved_output(
@@ -200,8 +204,18 @@ mod tests {
         .expect("config");
 
         let resolved = rule_execute(&store, "asset", "ASSET:42").expect("execute");
-        assert_eq!(resolved.raw(), Some("ASSET:42"));
-        assert_eq!(resolved.get("QR_VAR_ASSET"), Some("42"));
+        assert_eq!(resolved.vars.raw(), Some("ASSET:42"));
+        assert_eq!(resolved.vars.get("QR_VAR_ASSET"), Some("42"));
+    }
+
+    #[test]
+    fn rule_execute_merges_native_wifi_vars() {
+        let (_dir, store) = temp_store();
+        rule_create(&store, "wifi").expect("create");
+
+        let resolved =
+            rule_execute(&store, "wifi", "WIFI:T:WPA;S:lab;P:secret;;").expect("execute");
+        assert_eq!(resolved.vars.get("QR_NATIVE_WIFI_SSID"), Some("lab"));
     }
 
     #[test]
