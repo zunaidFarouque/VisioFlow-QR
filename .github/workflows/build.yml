@@ -29,7 +29,7 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y libopencv-contrib-dev clang libclang-dev pkg-config curl
+          sudo apt-get install -y libopencv-contrib-dev clang libclang-dev pkg-config curl libdbus-1-dev
 
       - name: Install OpenCV (Windows)
         if: runner.os == 'Windows'
