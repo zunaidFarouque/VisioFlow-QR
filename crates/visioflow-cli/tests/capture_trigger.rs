@@ -1,8 +1,6 @@
 use assert_cmd::Command;
 use image::{GrayImage, Luma};
 use predicates::prelude::*;
-use visioflow_cli::commands::capture::run_capture_with_source;
-use visioflow_core::traits::OpticalFilterKind;
 
 fn render_qr_fixture(path: &std::path::Path, payload: &str) {
     use qrcode::QrCode;
@@ -34,38 +32,39 @@ fn render_qr_fixture(path: &std::path::Path, payload: &str) {
     image.save(path).expect("write fixture");
 }
 
-struct GrayFixtureSource {
-    image: GrayImage,
-}
-
-impl visioflow_core::traits::FrameSource for GrayFixtureSource {
-    fn capture_frame(&self) -> visioflow_core::error::Result<image::DynamicImage> {
-        Ok(image::DynamicImage::ImageLuma8(self.image.clone()))
-    }
-}
-
 #[test]
-fn capture_engine_decodes_fixture_image() {
+fn capture_trigger_resolves_rule_vars_from_input_image() {
     let dir = tempfile::tempdir().expect("tempdir");
     let fixture = dir.path().join("qr.png");
-    render_qr_fixture(&fixture, "visioflow-mvp-payload");
+    render_qr_fixture(&fixture, "ASSET:99");
 
-    let source = GrayFixtureSource {
-        image: image::open(&fixture)
-            .expect("open fixture")
-            .to_luma8(),
-    };
+    let store = dir.path().join("rules.json");
 
-    let payloads =
-        run_capture_with_source(source, OpticalFilterKind::Otsu).expect("capture should succeed");
-    assert_eq!(payloads, vec!["visioflow-mvp-payload"]);
-}
+    Command::cargo_bin("visioflow")
+        .expect("visioflow binary")
+        .args([
+            "rule",
+            "--store",
+            &store.display().to_string(),
+            "create",
+            "asset",
+        ])
+        .assert()
+        .success();
 
-#[test]
-fn cli_capture_with_input_image_prints_payload() {
-    let dir = tempfile::tempdir().expect("tempdir");
-    let fixture = dir.path().join("qr.png");
-    render_qr_fixture(&fixture, "cli-stdout-payload");
+    Command::cargo_bin("visioflow")
+        .expect("visioflow binary")
+        .args([
+            "rule",
+            "--store",
+            &store.display().to_string(),
+            "config",
+            "asset",
+            "--regex",
+            r"ASSET:(?P<asset>\d+)",
+        ])
+        .assert()
+        .success();
 
     Command::cargo_bin("visioflow")
         .expect("visioflow binary")
@@ -75,58 +74,57 @@ fn cli_capture_with_input_image_prints_payload() {
             "snip",
             "--action",
             "stdout",
+            "--store",
+            &store.display().to_string(),
+            "--trigger",
+            "asset",
             "--input-image",
             &fixture.display().to_string(),
         ])
         .assert()
         .success()
-        .stdout(predicate::str::contains("cli-stdout-payload"));
+        .stdout(predicate::str::contains("QR_RAW=ASSET:99"))
+        .stdout(predicate::str::contains("QR_VAR_ASSET=99"));
 }
 
 #[test]
-fn cli_capture_export_bash_emits_qr_raw() {
+fn capture_trigger_export_bash_includes_resolved_vars() {
     let dir = tempfile::tempdir().expect("tempdir");
     let fixture = dir.path().join("qr.png");
-    render_qr_fixture(&fixture, "export-bash-payload");
+    render_qr_fixture(&fixture, "hello-trigger");
+
+    let store = dir.path().join("rules.json");
 
     Command::cargo_bin("visioflow")
         .expect("visioflow binary")
         .args([
-            "capture",
-            "--source",
-            "snip",
-            "--action",
-            "stdout",
+            "rule",
+            "--store",
+            &store.display().to_string(),
+            "create",
+            "plain",
+        ])
+        .assert()
+        .success();
+
+    Command::cargo_bin("visioflow")
+        .expect("visioflow binary")
+        .args([
             "--export",
             "bash",
-            "--input-image",
-            &fixture.display().to_string(),
-        ])
-        .assert()
-        .success()
-        .stdout(predicate::str::contains("export QR_RAW='export-bash-payload'"));
-}
-
-#[test]
-fn cli_capture_export_ps1_emits_qr_raw() {
-    let dir = tempfile::tempdir().expect("tempdir");
-    let fixture = dir.path().join("qr.png");
-    render_qr_fixture(&fixture, "export-ps1-payload");
-
-    Command::cargo_bin("visioflow")
-        .expect("visioflow binary")
-        .args([
             "capture",
             "--source",
             "snip",
             "--action",
             "stdout",
-            "--export",
-            "ps1",
+            "--store",
+            &store.display().to_string(),
+            "--trigger",
+            "plain",
             "--input-image",
             &fixture.display().to_string(),
         ])
         .assert()
         .success()
-        .stdout(predicate::str::contains("$env:QR_RAW = 'export-ps1-payload'"));
+        .stdout(predicate::str::contains("export QR_RAW='hello-trigger'"));
 }

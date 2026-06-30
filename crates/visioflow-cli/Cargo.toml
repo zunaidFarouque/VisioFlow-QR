@@ -12,9 +12,13 @@ path = "src/lib.rs"
 name = "visioflow"
 path = "src/main.rs"
 
+[features]
+default = ["opencv-webcam"]
+opencv-webcam = ["visioflow-core/opencv-webcam"]
+
 [dependencies]
 clap = { version = "4", features = ["derive"] }
-visioflow-core = { path = "../visioflow-core", features = ["opencv-webcam"] }
+visioflow-core = { path = "../visioflow-core" }
 thiserror = "2"
 serde_json = "1"
 image = "0.25"

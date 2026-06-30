@@ -17,6 +17,9 @@ pub enum VisioFlowError {
     #[error("unsupported action: {0}")]
     UnsupportedAction(String),
 
+    #[error("ipc error: {0}")]
+    Ipc(String),
+
     #[error("io error: {0}")]
     Io(#[from] std::io::Error),
 
