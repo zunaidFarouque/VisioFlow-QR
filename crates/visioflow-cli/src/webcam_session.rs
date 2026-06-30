@@ -19,7 +19,8 @@ use crate::decode_worker::{AsyncDecodeWorker, DecodeOutcome};
 use crate::preview_overlay::draw_preview_status_overlay;
 use crate::screen_bounds::{apply_anchored_preview_position, primary_work_area};
 use crate::webcam_preview::{
-    downscale_rgb_to_minifb_buffer, preview_dimensions_from_screen, should_attempt_decode,
+    downscale_rgb_to_minifb_buffer, mirror_bgr_horizontally, preview_dimensions_from_screen,
+    should_attempt_decode,
 };
 
 /// Default seconds to scan the webcam before timing out.
@@ -86,6 +87,7 @@ pub fn capture_webcam_with_preview(
     preview_scale: f32,
     timing: WebcamTiming,
     exposure_bracket: ExposureBracketMode,
+    mirror: bool,
 ) -> Result<Vec<String>> {
     let model_paths = resolve_model_paths()?;
     let decoder = Arc::new(WeChatCnnDecoder::init(&model_paths)?);
@@ -118,6 +120,7 @@ pub fn capture_webcam_with_preview(
         preview_scale,
         timing,
         exposure_bracket,
+        mirror,
     )
 }
 
@@ -158,6 +161,7 @@ fn scan_with_preview<F, D>(
     preview_scale: f32,
     timing: WebcamTiming,
     exposure_bracket: ExposureBracketMode,
+    mirror: bool,
 ) -> Result<Vec<String>>
 where
     F: LiveFrameSource,
@@ -226,7 +230,7 @@ where
     let mut decode_in_flight = false;
 
     while window.is_open() && !window.is_key_down(Key::Escape) && Instant::now() < deadline {
-        let frame = frame_source.latest_frame()?;
+        let frame = prepare_frame_for_display(&frame_source.latest_frame()?, mirror);
         show_frame_in_window(
             &frame,
             preview_width,
@@ -365,6 +369,14 @@ where
     }
 }
 
+fn prepare_frame_for_display(frame: &BgrFrame, mirror: bool) -> BgrFrame {
+    if mirror {
+        mirror_bgr_horizontally(frame)
+    } else {
+        frame.clone()
+    }
+}
+
 fn show_frame_in_window(
     frame: &BgrFrame,
     preview_width: u32,
@@ -402,6 +414,20 @@ fn bgr_to_rgb(frame: &BgrFrame) -> Vec<u8> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn prepare_frame_for_display_mirrors_when_enabled() {
+        let frame = BgrFrame::new(2, 1, vec![0, 0, 255, 255, 0, 0]);
+        let out = prepare_frame_for_display(&frame, true);
+        assert_eq!(out.data, vec![255, 0, 0, 0, 0, 255]);
+    }
+
+    #[test]
+    fn prepare_frame_for_display_passes_through_when_disabled() {
+        let frame = BgrFrame::new(2, 1, vec![0, 0, 255, 255, 0, 0]);
+        let out = prepare_frame_for_display(&frame, false);
+        assert_eq!(out, frame);
+    }
 
     #[test]
     fn default_webcam_timeout_is_twenty_seconds() {

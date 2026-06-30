@@ -2,16 +2,17 @@ use std::path::PathBuf;
 
 use clap::{Parser, Subcommand, ValueEnum};
 use visioflow_cli::commands::capture::{
-    apply_capture_halts, apply_routing_after_halts, decide_ipc_routing, route_mode_from_trigger,
-    run_capture, write_capture_output, CaptureAction, CaptureArgs, CaptureFilter, CaptureNotify,
-    CaptureSource, ExposureBracketMode, IpcRoutingDecision, OnMismatch, PreviewPosition,
-    RoutingApplyResult, WifiHandoffMode,
+    apply_capture_halts, apply_routing_after_halts, decide_ipc_routing, notify_routing_outcome,
+    route_mode_from_trigger, run_capture, write_capture_output, CaptureAction, CaptureArgs,
+    CaptureFilter, CaptureNotify, CaptureSource, ExposureBracketMode, IpcRoutingDecision,
+    OnMismatch, PreviewPosition, RoutingApplyResult, WifiHandoffMode,
 };
 use visioflow_cli::commands::daemon::{
     daemon_reload_ipc, daemon_start, daemon_status, daemon_stop, default_pid_path,
     route_capture_trigger_via_ipc, rule_execute_via_ipc, run_daemon_server_loop,
 };
 use visioflow_cli::commands::exec::spawn_rule_actions;
+use visioflow_cli::commands::notify::{notify_copy_from_toast, notify_test};
 use visioflow_cli::commands::rule::{
     map_rule_error, open_store, rule_config, rule_create, rule_delete, rule_execute,
     rule_init_defaults, rule_list, rule_set_action, write_resolved_output, write_rule_list_output,
@@ -29,6 +30,7 @@ const DEFAULT_EXPOSURE_FLUSH_GRABS: u32 = 2;
 #[cfg(not(feature = "opencv-webcam"))]
 const DEFAULT_EXPOSURE_STEP_MS: u64 = 100;
 use visioflow_core::default_socket_path;
+use visioflow_core::RoutingEvent;
 
 #[derive(Debug, Parser)]
 #[command(
@@ -158,9 +160,19 @@ enum Commands {
         #[arg(long)]
         interactive: bool,
 
+        /// Disable horizontal mirroring of the webcam preview (mirrored by default, selfie-style)
+        #[arg(long)]
+        no_mirror: bool,
+
         /// Path to rules JSON store (integration tests only)
         #[arg(long, hide = true)]
         store: Option<PathBuf>,
+    },
+
+    /// Desktop notification utilities
+    Notify {
+        #[command(subcommand)]
+        command: NotifyCommands,
     },
 
     /// Background routing daemon
@@ -175,6 +187,29 @@ enum Commands {
 
         #[command(subcommand)]
         command: DaemonCommands,
+    },
+}
+
+#[derive(Debug, Subcommand)]
+enum NotifyCommands {
+    /// Show a sample Windows toast without capture or webcam
+    Test {
+        #[arg(long, default_value = "VisioFlow")]
+        title: String,
+
+        #[arg(long, default_value = "Toast delivery smoke test")]
+        body: String,
+
+        /// Force a specific backend: winrt, powershell, or burnttoast
+        #[arg(long, value_name = "BACKEND")]
+        backend: Option<String>,
+    },
+
+    /// Copy a staged toast payload to the clipboard (invoked by toast Copy button)
+    #[command(hide = true)]
+    Copy {
+        #[arg(long, value_name = "PATH")]
+        from_toast: PathBuf,
     },
 }
 
@@ -256,6 +291,16 @@ enum RuleCommands {
 }
 
 fn main() {
+    if let Some(result) = visioflow_cli::notifications::try_dispatch_toast_protocol_activation() {
+        match result {
+            Ok(()) => return,
+            Err(error) => {
+                eprintln!("{error}");
+                std::process::exit(1);
+            }
+        }
+    }
+
     if let Err(error) = run() {
         eprintln!("{error}");
         std::process::exit(1);
@@ -350,6 +395,23 @@ fn run() -> visioflow_core::error::Result<()> {
                 }
             }
         }
+        Commands::Notify { command } => match command {
+            NotifyCommands::Test {
+                title,
+                body,
+                backend,
+            } => {
+                notify_test(
+                    Some(&title),
+                    Some(&body),
+                    backend.as_deref(),
+                    cli.verbose,
+                )?;
+            }
+            NotifyCommands::Copy { from_toast } => {
+                notify_copy_from_toast(&from_toast, cli.silent)?;
+            }
+        }
         Commands::Daemon {
             store,
             socket,
@@ -413,6 +475,7 @@ fn run() -> visioflow_core::error::Result<()> {
             select,
             interactive,
             store: rule_store,
+            no_mirror,
         } => {
             let payloads = run_capture(CaptureArgs {
                 source,
@@ -436,6 +499,7 @@ fn run() -> visioflow_core::error::Result<()> {
                 rule_store: rule_store.clone(),
                 select,
                 interactive,
+                mirror: !no_mirror,
             })?;
 
             let mut stdin = std::io::stdin().lock();
@@ -487,6 +551,26 @@ fn run() -> visioflow_core::error::Result<()> {
                 if let (Some(socket), Some(IpcRoutingDecision::ExecuteMatchedRule { rule_name })) =
                     (ipc_socket.as_ref(), ipc_decision)
                 {
+                    let payload = payloads.first().ok_or_else(|| {
+                        visioflow_core::VisioFlowError::Capture(
+                            "no payloads decoded for routing".into(),
+                        )
+                    })?;
+                    let notify_mode = if notify {
+                        CaptureNotify::On
+                    } else {
+                        CaptureNotify::Off
+                    };
+                    notify_routing_outcome(
+                        notify_mode,
+                        &RoutingEvent::Matched {
+                            rule: rule_name.clone(),
+                            auto_route: explicit_ipc_trigger.is_none(),
+                        },
+                        payload,
+                        cli.verbose,
+                        cli.silent,
+                    );
                     let vars = route_capture_trigger_via_ipc(socket, &rule_name, &payloads)?;
                     if let Some(export_fmt) = cli.export {
                         let map = visioflow_core::vars_from_resolved(&vars);
@@ -600,7 +684,7 @@ mod tests {
                 assert_eq!(decode_interval_ms, DEFAULT_DECODE_INTERVAL_MS);
                 assert!(matches!(exposure_bracket, ExposureBracketMode::Auto));
             }
-            Commands::Rule { .. } | Commands::Daemon { .. } => {}
+            Commands::Rule { .. } | Commands::Daemon { .. } | Commands::Notify { .. } => {}
         }
     }
 
@@ -622,7 +706,9 @@ mod tests {
             Commands::Capture { trigger, .. } => {
                 assert_eq!(trigger.as_deref(), Some("asset"));
             }
-            Commands::Rule { .. } | Commands::Daemon { .. } => panic!("expected capture"),
+            Commands::Rule { .. } | Commands::Daemon { .. } | Commands::Notify { .. } => {
+                panic!("expected capture")
+            }
         }
     }
 
@@ -663,7 +749,7 @@ mod tests {
                 assert_eq!(exposure_flush_grabs, 2);
                 assert_eq!(decode_interval_ms, 200);
             }
-            Commands::Rule { .. } | Commands::Daemon { .. } => {}
+            Commands::Rule { .. } | Commands::Daemon { .. } | Commands::Notify { .. } => {}
         }
     }
 
@@ -690,7 +776,9 @@ mod tests {
                 assert!(select);
                 assert!(interactive);
             }
-            Commands::Rule { .. } | Commands::Daemon { .. } => panic!("expected capture"),
+            Commands::Rule { .. } | Commands::Daemon { .. } | Commands::Notify { .. } => {
+                panic!("expected capture")
+            }
         }
     }
 
@@ -750,7 +838,9 @@ mod tests {
                 assert!(matches!(wifi_handoff, WifiHandoffMode::Print));
                 assert!(notify);
             }
-            Commands::Rule { .. } | Commands::Daemon { .. } => panic!("expected capture"),
+            Commands::Rule { .. } | Commands::Daemon { .. } | Commands::Notify { .. } => {
+                panic!("expected capture")
+            }
         }
     }
 
@@ -761,7 +851,9 @@ mod tests {
 
         match cli.command {
             Commands::Capture { notify, .. } => assert!(!notify),
-            Commands::Rule { .. } | Commands::Daemon { .. } => panic!("expected capture"),
+            Commands::Rule { .. } | Commands::Daemon { .. } | Commands::Notify { .. } => {
+                panic!("expected capture")
+            }
         }
     }
 
@@ -774,6 +866,114 @@ mod tests {
             .render_help()
             .to_string();
         assert!(help.contains("--notify"));
+    }
+
+    #[test]
+    fn capture_webcam_mirrors_by_default() {
+        let cli = Cli::try_parse_from([
+            "visioflow",
+            "capture",
+            "--source",
+            "webcam",
+            "--action",
+            "stdout",
+        ])
+        .expect("cli should parse");
+
+        match cli.command {
+            Commands::Capture { no_mirror, .. } => assert!(!no_mirror),
+            Commands::Rule { .. } | Commands::Daemon { .. } | Commands::Notify { .. } => {
+                panic!("expected capture")
+            }
+        }
+    }
+
+    #[test]
+    fn capture_accepts_no_mirror_flag() {
+        let cli = Cli::try_parse_from([
+            "visioflow",
+            "capture",
+            "--source",
+            "webcam",
+            "--action",
+            "stdout",
+            "--no-mirror",
+        ])
+        .expect("cli should parse");
+
+        match cli.command {
+            Commands::Capture { no_mirror, .. } => assert!(no_mirror),
+            Commands::Rule { .. } | Commands::Daemon { .. } | Commands::Notify { .. } => {
+                panic!("expected capture")
+            }
+        }
+    }
+
+    #[test]
+    fn capture_help_mentions_no_mirror_flag() {
+        let mut root = Cli::command();
+        let help = root
+            .find_subcommand_mut("capture")
+            .expect("capture command")
+            .render_help()
+            .to_string();
+        assert!(help.contains("--no-mirror"));
+    }
+
+    #[test]
+    fn notify_test_command_parses() {
+        let cli = Cli::try_parse_from([
+            "visioflow",
+            "notify",
+            "test",
+            "--title",
+            "T",
+            "--body",
+            "B",
+        ])
+        .expect("cli should parse");
+
+        match cli.command {
+            Commands::Notify {
+                command: NotifyCommands::Test {
+                    title,
+                    body,
+                    backend: _,
+                },
+            } => {
+                assert_eq!(title, "T");
+                assert_eq!(body, "B");
+            }
+            Commands::Rule { .. } | Commands::Capture { .. } | Commands::Daemon { .. } => {
+                panic!("expected notify")
+            }
+            Commands::Notify {
+                command: NotifyCommands::Copy { .. },
+            } => panic!("expected notify test"),
+        }
+    }
+
+    #[test]
+    fn notify_copy_command_parses() {
+        let cli = Cli::try_parse_from([
+            "visioflow",
+            "notify",
+            "copy",
+            "--from-toast",
+            r"C:\Users\me\AppData\Local\Temp\visioflow-toast-copy-1-0.txt",
+        ])
+        .expect("cli should parse");
+
+        match cli.command {
+            Commands::Notify {
+                command: NotifyCommands::Copy { from_toast },
+            } => {
+                assert!(from_toast
+                    .to_string_lossy()
+                    .contains("visioflow-toast-copy-1-0.txt"));
+            }
+            _ => panic!("expected notify copy"),
+        }
     }
 
     #[test]

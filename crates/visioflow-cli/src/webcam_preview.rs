@@ -2,6 +2,8 @@
 
 use std::time::Duration;
 
+use visioflow_core::traits::BgrFrame;
+
 /// Default maximum width of the live preview window in pixels (display only).
 pub const DEFAULT_PREVIEW_MAX_WIDTH: u32 = 640;
 pub const DEFAULT_PREVIEW_SCALE: f32 = 0.12;
@@ -23,6 +25,29 @@ pub fn decode_interval_from_ms(ms: u64) -> Duration {
 /// Returns true when a decode attempt is due based on the elapsed time since the last one.
 pub fn should_attempt_decode(elapsed: Duration, interval: Duration) -> bool {
     elapsed >= interval
+}
+
+/// Horizontally mirror a BGR frame (selfie-style webcam preview).
+#[must_use]
+pub fn mirror_bgr_horizontally(frame: &BgrFrame) -> BgrFrame {
+    if frame.width <= 1 {
+        return frame.clone();
+    }
+
+    let stride = (frame.width * 3) as usize;
+    let mut data = frame.data.clone();
+    for row in 0..frame.height as usize {
+        let base = row * stride;
+        for x in 0..(frame.width / 2) as usize {
+            let left = base + x * 3;
+            let right = base + (frame.width as usize - 1 - x) * 3;
+            for c in 0..3 {
+                data.swap(left + c, right + c);
+            }
+        }
+    }
+
+    BgrFrame::new(frame.width, frame.height, data)
 }
 
 /// Compute preview dimensions that fit within `max_width` while preserving aspect ratio.
@@ -194,5 +219,20 @@ mod tests {
         let (w, h) = preview_dimensions_from_screen(1920, 1080, 1920, 1080, 0.25);
         let ratio = w as f64 / h as f64;
         assert!((ratio - (1920.0 / 1080.0)).abs() < 0.02);
+    }
+
+    #[test]
+    fn mirror_bgr_horizontally_swaps_left_and_right_pixels() {
+        // 2x1: left red, right blue
+        let frame = BgrFrame::new(2, 1, vec![0, 0, 255, 255, 0, 0]);
+        let mirrored = mirror_bgr_horizontally(&frame);
+        assert_eq!(mirrored.data, vec![255, 0, 0, 0, 0, 255]);
+    }
+
+    #[test]
+    fn mirror_bgr_horizontally_is_involutory() {
+        let frame = BgrFrame::new(3, 2, (0..18).map(|n| n as u8).collect());
+        let twice = mirror_bgr_horizontally(&mirror_bgr_horizontally(&frame));
+        assert_eq!(twice, frame);
     }
 }

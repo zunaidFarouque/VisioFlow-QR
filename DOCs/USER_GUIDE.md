@@ -131,6 +131,7 @@ Download WeChat CNN model files into `models/` (see `models/README.md`).
 .\scripts\smoke-router.ps1
 .\scripts\smoke-default-rules.ps1
 .\scripts\smoke-shortcuts.ps1
+.\scripts\smoke-notify.ps1
 .\scripts\smoke-distribution.ps1
 ```
 
@@ -139,6 +140,8 @@ Download WeChat CNN model files into `models/` (see `models/README.md`).
 `smoke-default-rules.ps1` seeds stock rules via `rule init-defaults` into a temp store, runs `rule execute url --no-exec`, and checks `rule list`.
 
 `smoke-shortcuts.ps1` validates the Windows shortcut installer in temp directories (launcher `.cmd` files + Desktop/Start Menu `.lnk` files).
+
+`smoke-notify.ps1` runs `visioflow notify test` and asserts exit code zero (check Action Center for the toast).
 
 `smoke-distribution.ps1` validates distribution artifacts for Scoop/traditional/zip paths, including install bootstrap and expected file layout.
 
@@ -331,6 +334,36 @@ visioflow capture --source snip --trigger plain --action stdout
 
 If the OS notification channel is unavailable, capture continues normally. In `--verbose` mode, VisioFlow prints a one-line stderr diagnostic instead of failing.
 
+**Toast smoke test (Windows, no webcam):**
+
+```powershell
+visioflow notify test --verbose
+```
+
+Custom title/body:
+
+```powershell
+visioflow notify test --title "VisioFlow" --body "Hello from toast smoke" --verbose
+```
+
+Force a specific backend (diagnostics):
+
+```powershell
+visioflow notify test --backend winrt --verbose
+visioflow notify test --backend powershell --verbose
+visioflow notify test --backend burnttoast --verbose   # requires Install-Module BurntToast
+```
+
+Automated smoke:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\smoke-notify.ps1
+```
+
+**If `notify test` exits 0 but you see no popup:** VisioFlow registers a Start Menu shortcut at `%APPDATA%\Microsoft\Windows\Start Menu\Programs\VisioFlow\VisioFlow.lnk` with AppUserModelID `VisioFlow.VisioFlowQR` (required for desktop toasts). Check Windows **Settings → System → Notifications** and ensure notifications are on globally and for **VisioFlow**. Also check **Focus Assist** (Do Not Disturb) — it can suppress toasts. Re-run `notify test --verbose`; it prints a reminder when delivery may be blocked.
+
+**Toast Copy button:** Routing toasts (`--notify`) and `notify test` include a **Copy** button (or **Copy again** when routing already copied the payload to the clipboard). Clicking it launches `visioflow.exe` without a visible console window via the registered `visioflow:` protocol URL, reads the **full raw payload** from a temp file in `%TEMP%` (not the truncated toast body), and copies it to the clipboard. VisioFlow registers the protocol handler (hidden PowerShell launcher with `CreateNoWindow`) and a stub toast-activator CLSID on the Start Menu shortcut automatically on first toast send — no manual registry edits needed.
+
 **Human-first default:** successful routing runs actions; failures **copy** the payload and print a stderr notice (unless `--silent`). Use `--action stdout` only for scripting — not the default snip experience.
 
 Full routing spec: [`Routing-And-Default-Rules.md`](Routing-And-Default-Rules.md).
@@ -360,6 +393,8 @@ Use `--verbose` to see decoded payload(s) on stderr before routing — essential
 . .\scripts\dev-env.ps1
 visioflow capture --source webcam --action stdout --trigger wifi --timeout 30 --verbose
 ```
+
+The live preview is **mirrored horizontally by default** (selfie-style). Pass `--no-mirror` to show the raw camera orientation.
 
 ### Multi-payload selection (`--select`)
 

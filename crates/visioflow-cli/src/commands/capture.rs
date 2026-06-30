@@ -11,7 +11,9 @@ use visioflow_core::{
 };
 
 use crate::capture::{FileFrameSource, SnipFrameSource};
-use crate::notifications::{send_native_notification, NativeNotification};
+use crate::notifications::{
+    send_native_notification, truncate_for_toast, NativeNotification, TOAST_BODY_MAX_CHARS,
+};
 #[cfg(feature = "opencv-webcam")]
 use crate::webcam_session::{
     capture_webcam_with_preview, WebcamTiming, DEFAULT_WEBCAM_TIMEOUT_SECS,
@@ -111,6 +113,8 @@ pub struct CaptureArgs {
     pub select: bool,
     pub interactive: bool,
     pub notify: bool,
+    /// When true (default), flip webcam frames horizontally for selfie-style preview and decode.
+    pub mirror: bool,
 }
 
 impl CaptureArgs {
@@ -161,6 +165,7 @@ pub fn run_capture(args: CaptureArgs) -> Result<Vec<String>> {
                         args.decode_interval_ms,
                     ),
                     args.exposure_bracket,
+                    args.mirror,
                 )
             }
             #[cfg(not(feature = "opencv-webcam"))]
@@ -494,8 +499,15 @@ pub fn apply_routing_after_halts(
                     format_capture_routing_message(&RoutingEvent::BuiltinCopy, false)
                 );
             }
+            emit_routing_notification(
+                notify,
+                &RoutingEvent::BuiltinCopy,
+                payload,
+                verbose,
+                silent,
+                true,
+            );
             write_capture_output(&[payload.clone()], CaptureAction::Copy, true)?;
-            emit_routing_notification(notify, &RoutingEvent::BuiltinCopy, verbose, silent);
             return Ok(RoutingApplyResult::CopiedPayload {
                 event: RoutingEvent::BuiltinCopy,
             });
@@ -526,34 +538,40 @@ pub fn apply_routing_after_halts(
             );
         }
 
-        if let Err(err) = spawn_rule_actions(&routed.rule, &routed.vars) {
-            if let Some(note) = wifi_error_notification(&err, &routed.rule.name) {
+        let event = route_result.event.clone();
+        if is_catchall_copy_rule(&routed.rule) {
+            if !silent {
+                eprintln!(
+                    "{}",
+                    format_capture_routing_message(&event, false)
+                );
+            }
+            emit_routing_notification(notify, &event, payload, verbose, silent, true);
+            write_capture_output(&[payload.clone()], CaptureAction::Copy, true)?;
+            return Ok(RoutingApplyResult::CopiedPayload { event });
+        }
+
+        if let Err(err) = notify_then_action(
+            notify,
+            &event,
+            payload,
+            verbose,
+            silent,
+            send_native_notification,
+            || spawn_rule_actions(&routed.rule, &routed.vars),
+        ) {
+            if let Some(note) = wifi_error_notification(&err, &routed.rule.name, payload) {
                 emit_native_notification(notify, note, verbose, silent);
             }
             return Err(map_routing_error(err));
         }
 
-        if is_catchall_copy_rule(&routed.rule) {
-            if !silent {
-                eprintln!(
-                    "{}",
-                    format_capture_routing_message(&route_result.event, false)
-                );
-            }
-            write_capture_output(&[payload.clone()], CaptureAction::Copy, true)?;
-            emit_routing_notification(notify, &route_result.event, verbose, silent);
-            return Ok(RoutingApplyResult::CopiedPayload {
-                event: route_result.event,
-            });
-        }
-
         if !silent {
             eprintln!(
                 "{}",
-                format_capture_routing_message(&route_result.event, false)
+                format_capture_routing_message(&event, false)
             );
         }
-        emit_routing_notification(notify, &route_result.event, verbose, silent);
         return Ok(RoutingApplyResult::Matched(routed));
     }
 
@@ -563,15 +581,15 @@ pub fn apply_routing_after_halts(
             if !silent {
                 eprintln!("{}", format_capture_routing_message(&event, true));
             }
+            emit_routing_notification(notify, &event, payload, verbose, silent, true);
             write_capture_output(&[payload.clone()], CaptureAction::Copy, true)?;
-            emit_routing_notification(notify, &event, verbose, silent);
             Ok(RoutingApplyResult::CopiedPayload { event })
         }
         OnMismatch::None => {
             if !silent {
                 eprintln!("{}", format_capture_routing_message(&event, false));
             }
-            emit_routing_notification(notify, &event, verbose, silent);
+            emit_routing_notification(notify, &event, payload, verbose, silent, false);
             Err(visioflow_core::VisioFlowError::Capture(
                 "routing failed with --on-mismatch none".into(),
             ))
@@ -579,20 +597,70 @@ pub fn apply_routing_after_halts(
     }
 }
 
-fn emit_routing_notification(
+/// Show a routing toast when enabled, then run `action` (rule exec, WiFi, copy, etc.).
+pub fn notify_then_action<F, S>(
     mode: CaptureNotify,
     event: &RoutingEvent,
+    payload: &str,
+    verbose: bool,
+    silent: bool,
+    sender: S,
+    action: F,
+) -> std::result::Result<(), RuleError>
+where
+    S: Fn(&NativeNotification) -> StdResult<(), String>,
+    F: FnOnce() -> std::result::Result<(), RuleError>,
+{
+    emit_routing_notification_with(mode, event, payload, verbose, silent, false, sender);
+    action()
+}
+
+/// Public entry for capture/IPC paths that need notify-before-action ordering.
+pub fn notify_routing_outcome(
+    mode: CaptureNotify,
+    event: &RoutingEvent,
+    payload: &str,
     verbose: bool,
     silent: bool,
 ) {
+    emit_routing_notification(mode, event, payload, verbose, silent, false);
+}
+
+fn emit_routing_notification(
+    mode: CaptureNotify,
+    event: &RoutingEvent,
+    payload: &str,
+    verbose: bool,
+    silent: bool,
+    already_copied: bool,
+) {
+    emit_routing_notification_with(
+        mode,
+        event,
+        payload,
+        verbose,
+        silent,
+        already_copied,
+        send_native_notification,
+    );
+}
+
+fn emit_routing_notification_with<S>(
+    mode: CaptureNotify,
+    event: &RoutingEvent,
+    payload: &str,
+    verbose: bool,
+    silent: bool,
+    already_copied: bool,
+    sender: S,
+) where
+    S: Fn(&NativeNotification) -> StdResult<(), String>,
+{
     if !should_notify_for_event(mode, event) {
         return;
     }
-    let note = NativeNotification {
-        title: "VisioFlow Capture".to_owned(),
-        body: routing_notification_body(event),
-    };
-    emit_native_notification(mode, note, verbose, silent);
+    let note = build_routing_notification(event, payload, already_copied);
+    emit_native_notification_with(note, verbose, silent, sender);
 }
 
 fn emit_native_notification(
@@ -635,24 +703,70 @@ pub fn should_notify_for_event(mode: CaptureNotify, event: &RoutingEvent) -> boo
 }
 
 #[must_use]
-pub fn routing_notification_body(event: &RoutingEvent) -> String {
+pub fn notification_title_for_event(_event: &RoutingEvent) -> String {
+    "VisioFlow".to_owned()
+}
+
+#[must_use]
+pub fn routing_notification_header(event: &RoutingEvent) -> String {
     match event {
-        RoutingEvent::Matched { rule, .. } => format!(r#"Matched rule "{rule}""#),
-        RoutingEvent::Mismatch { rule } => {
-            format!(r#"Rule "{rule}" did not match; payload copied"#)
-        }
-        RoutingEvent::NoAutoMatch => "No auto rule matched; payload copied".to_owned(),
-        RoutingEvent::BuiltinCopy => "Copied payload to clipboard".to_owned(),
-        RoutingEvent::BuiltinPlain => "Printed payload to stdout".to_owned(),
+        RoutingEvent::Matched {
+            rule,
+            auto_route: true,
+        } => format!(r#"Matched rule "{rule}""#),
+        RoutingEvent::Matched {
+            rule,
+            auto_route: false,
+        } => format!(r#"Running rule "{rule}""#),
+        RoutingEvent::Mismatch { rule } => format!(r#"Rule "{rule}" did not match"#),
+        RoutingEvent::NoAutoMatch => "No rule matched".to_owned(),
+        RoutingEvent::BuiltinCopy => "Copied to clipboard".to_owned(),
+        RoutingEvent::BuiltinPlain => "Plain text mode".to_owned(),
     }
 }
 
 #[must_use]
-pub fn wifi_error_notification(err: &RuleError, rule_name: &str) -> Option<NativeNotification> {
+pub fn routing_notification_body(event: &RoutingEvent, payload: &str) -> String {
+    let header = routing_notification_header(event);
+    let raw = truncate_for_toast(payload, TOAST_BODY_MAX_CHARS);
+    format!("{header}\n\nRaw text:\n{raw}")
+}
+
+#[must_use]
+pub fn build_routing_notification(
+    event: &RoutingEvent,
+    payload: &str,
+    already_copied: bool,
+) -> NativeNotification {
+    NativeNotification {
+        title: notification_title_for_event(event),
+        body: routing_notification_body(event, payload),
+        copy_payload: Some(payload.to_owned()),
+        already_copied,
+    }
+}
+
+#[must_use]
+pub fn wifi_error_notification(
+    err: &RuleError,
+    rule_name: &str,
+    payload: &str,
+) -> Option<NativeNotification> {
     match err {
         RuleError::WifiConnectFailed(detail) => Some(NativeNotification {
-            title: "VisioFlow WiFi Handoff Error".to_owned(),
-            body: format!(r#"Rule "{rule_name}" failed: {detail}"#),
+            title: format!("VisioFlow WiFi ({rule_name})"),
+            body: format!(
+                "{} — {detail}",
+                routing_notification_body(
+                    &RoutingEvent::Matched {
+                        rule: rule_name.to_owned(),
+                        auto_route: false,
+                    },
+                    payload,
+                )
+            ),
+            copy_payload: Some(payload.to_owned()),
+            already_copied: false,
         }),
         _ => None,
     }
@@ -954,23 +1068,236 @@ mod routing_tests {
     }
 
     #[test]
-    fn routing_notification_text_for_mismatch_uses_reason() {
-        let text = routing_notification_body(&RoutingEvent::Mismatch {
-            rule: "asset".to_owned(),
-        });
-        assert!(text.contains("did not match"));
+    fn routing_notification_title_is_always_visioflow() {
+        let note = build_routing_notification(
+            &RoutingEvent::Matched {
+                rule: "url".to_owned(),
+                auto_route: true,
+            },
+            "https://example.com",
+            false,
+        );
+        assert_eq!(note.title, "VisioFlow");
+    }
+
+    #[test]
+    fn routing_notification_body_auto_matched_rule() {
+        let payload = "https://www.google.com";
+        let note = build_routing_notification(
+            &RoutingEvent::Matched {
+                rule: "url".to_owned(),
+                auto_route: true,
+            },
+            payload,
+            false,
+        );
+        assert_eq!(
+            note.body,
+            "Matched rule \"url\"\n\nRaw text:\nhttps://www.google.com"
+        );
+    }
+
+    #[test]
+    fn routing_notification_body_explicit_matched_rule() {
+        let payload = "MATMSG:TO:user@example.com;SUB:Hello;";
+        let note = build_routing_notification(
+            &RoutingEvent::Matched {
+                rule: "plain".to_owned(),
+                auto_route: false,
+            },
+            payload,
+            false,
+        );
+        assert_eq!(
+            note.body,
+            "Running rule \"plain\"\n\nRaw text:\nMATMSG:TO:user@example.com;SUB:Hello;"
+        );
+    }
+
+    #[test]
+    fn routing_notification_body_wifi_auto_matched() {
+        let payload = "WIFI:T:WPA;S:lab;P:secret;;";
+        let note = build_routing_notification(
+            &RoutingEvent::Matched {
+                rule: "wifi".to_owned(),
+                auto_route: true,
+            },
+            payload,
+            false,
+        );
+        assert_eq!(
+            note.body,
+            "Matched rule \"wifi\"\n\nRaw text:\nWIFI:T:WPA;S:lab;P:secret;;"
+        );
+    }
+
+    #[test]
+    fn build_routing_notification_includes_full_copy_payload() {
+        let payload = "x".repeat(300);
+        let note = build_routing_notification(
+            &RoutingEvent::Matched {
+                rule: "url".to_owned(),
+                auto_route: true,
+            },
+            &payload,
+            false,
+        );
+        assert_eq!(note.copy_payload.as_deref(), Some(payload.as_str()));
+    }
+
+    #[test]
+    fn routing_notification_body_truncates_only_raw_payload() {
+        let payload = "x".repeat(300);
+        let body = routing_notification_body(
+            &RoutingEvent::Matched {
+                rule: "url".to_owned(),
+                auto_route: true,
+            },
+            &payload,
+        );
+        assert!(body.starts_with("Matched rule \"url\"\n\nRaw text:\n"));
+        let raw_line = body.strip_prefix("Matched rule \"url\"\n\nRaw text:\n").unwrap();
+        assert!(raw_line.ends_with('…'));
+        assert_eq!(raw_line.chars().count(), 257);
+    }
+
+    #[test]
+    fn routing_notification_body_builtin_copy() {
+        let note = build_routing_notification(&RoutingEvent::BuiltinCopy, "scan-me", true);
+        assert_eq!(
+            note.body,
+            "Copied to clipboard\n\nRaw text:\nscan-me"
+        );
+    }
+
+    #[test]
+    fn build_routing_notification_copy_again_when_already_copied() {
+        let note = build_routing_notification(&RoutingEvent::BuiltinCopy, "scan-me", true);
+        assert!(note.already_copied);
+        assert_eq!(
+            crate::notifications::toast_copy_action_label(note.already_copied),
+            "Copy again"
+        );
+    }
+
+    #[test]
+    fn build_routing_notification_copy_when_not_auto_copied() {
+        let note = build_routing_notification(
+            &RoutingEvent::Matched {
+                rule: "url".to_owned(),
+                auto_route: true,
+            },
+            "https://example.com",
+            false,
+        );
+        assert!(!note.already_copied);
+        assert_eq!(
+            crate::notifications::toast_copy_action_label(note.already_copied),
+            "Copy"
+        );
+    }
+
+    #[test]
+    fn routing_notification_body_no_auto_match() {
+        let note = build_routing_notification(&RoutingEvent::NoAutoMatch, "unknown-payload", false);
+        assert_eq!(
+            note.body,
+            "No rule matched\n\nRaw text:\nunknown-payload"
+        );
+    }
+
+    #[test]
+    fn notify_then_action_runs_notify_before_action() {
+        use std::sync::atomic::{AtomicU8, Ordering};
+
+        static ORDER: AtomicU8 = AtomicU8::new(0);
+        ORDER.store(0, Ordering::SeqCst);
+
+        let sender = |_: &NativeNotification| {
+            assert_eq!(ORDER.fetch_add(1, Ordering::SeqCst), 0);
+            Ok(())
+        };
+        let action = || {
+            assert_eq!(ORDER.fetch_add(1, Ordering::SeqCst), 1);
+            Ok(())
+        };
+
+        notify_then_action(
+            CaptureNotify::On,
+            &RoutingEvent::Matched {
+                rule: "wifi".to_owned(),
+                auto_route: true,
+            },
+            "WIFI:T:WPA;S:lab;P:secret;;",
+            false,
+            true,
+            sender,
+            action,
+        )
+        .expect("sequenced");
+
+        assert_eq!(ORDER.load(Ordering::SeqCst), 2);
+    }
+
+    #[test]
+    fn notify_then_action_skips_notify_when_disabled() {
+        use std::sync::atomic::{AtomicU8, Ordering};
+
+        static ORDER: AtomicU8 = AtomicU8::new(0);
+        ORDER.store(0, Ordering::SeqCst);
+
+        let sender = |_: &NativeNotification| {
+            ORDER.fetch_add(1, Ordering::SeqCst);
+            Ok(())
+        };
+
+        notify_then_action(
+            CaptureNotify::Off,
+            &RoutingEvent::Matched {
+                rule: "wifi".to_owned(),
+                auto_route: true,
+            },
+            "payload",
+            false,
+            true,
+            sender,
+            || Ok(()),
+        )
+        .expect("action only");
+
+        assert_eq!(ORDER.load(Ordering::SeqCst), 0);
+    }
+
+    #[test]
+    fn routing_notification_text_for_mismatch_uses_payload() {
+        let payload = "https://example.com";
+        let note = build_routing_notification(
+            &RoutingEvent::Mismatch {
+                rule: "asset".to_owned(),
+            },
+            payload,
+            false,
+        );
+        assert_eq!(note.title, "VisioFlow");
+        assert_eq!(
+            note.body,
+            "Rule \"asset\" did not match\n\nRaw text:\nhttps://example.com"
+        );
     }
 
     #[test]
     fn wifi_connect_failure_maps_to_notification() {
+        let payload = "WIFI:T:WPA;S:lab;P:secret;;";
         let maybe = wifi_error_notification(
             &RuleError::WifiConnectFailed("access denied".to_owned()),
             "wifi",
+            payload,
         );
         assert!(maybe.is_some());
         let note = maybe.expect("notification");
-        assert!(note.title.contains("WiFi"));
+        assert!(note.title.contains("wifi"));
         assert!(note.body.contains("access denied"));
+        assert!(note.body.contains(payload));
     }
 }
 
