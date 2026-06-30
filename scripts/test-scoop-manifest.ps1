@@ -38,6 +38,12 @@ Assert-Contains $manifestRaw "launchers" "scoop manifest legacy cleanup"
 
 $shortcuts = @($manifest.shortcuts)
 Assert-True ($shortcuts.Count -eq 4) "scoop manifest: shortcuts should have 4 entries"
+foreach ($entry in $shortcuts) {
+    Assert-True ($entry.Count -ge 4) "scoop manifest: shortcut missing icon path"
+    Assert-True ($entry[3] -eq "VisiFlow-QR.ico") "scoop manifest: shortcut icon should be VisiFlow-QR.ico"
+}
+
+Assert-Contains $manifestRaw "VisiFlow-QR.ico" "scoop manifest shortcuts icon"
 
 $postInstall = @($manifest.post_install)
 Assert-True ($postInstall.Count -ge 3) "scoop manifest: post_install should run bootstrap logic"

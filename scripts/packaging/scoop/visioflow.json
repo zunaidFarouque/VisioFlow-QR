@@ -1,12 +1,12 @@
 {
-  "version": "0.1.3",
+  "version": "0.1.4",
   "description": "Visual payload router for QR capture and automation",
   "homepage": "https://github.com/zunaidFarouque/VisioFlow-QR",
   "license": "MIT",
   "architecture": {
     "64bit": {
-      "url": "https://github.com/zunaidFarouque/VisioFlow-QR/releases/download/v0.1.3/visioflow-win-x64.zip",
-      "hash": "2b538059bf1faeb3ed0e98452883162a50173416eb12d0562080357431db9c0b",
+      "url": "https://github.com/zunaidFarouque/VisioFlow-QR/releases/download/v0.1.4/visioflow-win-x64.zip",
+      "hash": "23d24d0fd778ba51e0ff3b129a8c38d62cbf130dce27c710706480cff6bf9972",
       "extract_dir": "visioflow-win-x64"
     }
   },
@@ -15,10 +15,10 @@
     "VISIOFLOW_MODELS_DIR": "$dir\\models"
   },
   "shortcuts": [
-    ["visioflow.exe", "VisioFlow\\VisioFlow QR Camera (auto)", "capture --source webcam"],
-    ["visioflow.exe", "VisioFlow\\VisioFlow QR Camera (copy)", "capture --source webcam --trigger copy"],
-    ["visioflow.exe", "VisioFlow\\VisioFlow QR Snip (auto)", "capture --source snip"],
-    ["visioflow.exe", "VisioFlow\\VisioFlow QR Snip (copy)", "capture --source snip --trigger copy"]
+    ["visioflow.exe", "VisioFlow\\VisioFlow QR Camera (auto)", "capture --source webcam", "VisiFlow-QR.ico"],
+    ["visioflow.exe", "VisioFlow\\VisioFlow QR Camera (copy)", "capture --source webcam --trigger copy", "VisiFlow-QR.ico"],
+    ["visioflow.exe", "VisioFlow\\VisioFlow QR Snip (auto)", "capture --source snip", "VisiFlow-QR.ico"],
+    ["visioflow.exe", "VisioFlow\\VisioFlow QR Snip (copy)", "capture --source snip --trigger copy", "VisiFlow-QR.ico"]
   ],
   "persist": "data",
   "post_install": [

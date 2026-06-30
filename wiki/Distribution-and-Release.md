@@ -20,6 +20,7 @@ Release zip root (`visioflow-win-x64/`) contains:
 |------|---------|
 | `visioflow.exe` | Main CLI (webcam when built with default features) |
 | `visioflow-toast.exe` | Toast activation helper for notification Copy button |
+| `VisiFlow-QR.ico` | App icon (embedded in exes; Scoop/traditional shortcuts) |
 | `default-rules.json` | Stock rule pack |
 | `install-shortcuts.ps1` | Start Menu shortcuts + `.cmd` launchers (traditional/portable) |
 | `bootstrap-portable.ps1` | Portable install bootstrap |
@@ -59,7 +60,7 @@ cargo build --release -p visioflow-cli
 ## Publish checklist
 
 1. Run `.\scripts\build-release.ps1` and note the printed SHA256.
-2. Upload `dist/visioflow-win-x64.zip` to a GitHub release tag (e.g. [v0.1.3](https://github.com/zunaidFarouque/VisioFlow-QR/releases/tag/v0.1.3)).
+2. Upload `dist/visioflow-win-x64.zip` to a GitHub release tag (e.g. [v0.1.4](https://github.com/zunaidFarouque/VisioFlow-QR/releases/tag/v0.1.4)).
 3. Update `scripts/packaging/scoop/visioflow.json`:
    - `version`
    - `architecture.64bit.url` (release download URL)
@@ -73,7 +74,7 @@ Scoop manifest path: `scripts/packaging/scoop/visioflow.json`
 Current release URL:
 
 ```
-https://github.com/zunaidFarouque/VisioFlow-QR/releases/download/v0.1.3/visioflow-win-x64.zip
+https://github.com/zunaidFarouque/VisioFlow-QR/releases/download/v0.1.4/visioflow-win-x64.zip
 ```
 
 ---
@@ -95,15 +96,15 @@ If all pass, the distribution and install scripts are in a releasable state.
 
 ```json
 {
-  "version": "0.1.3",
+  "version": "0.1.4",
   "shortcuts": [
     ["visioflow.exe", "VisioFlow\\\\VisioFlow QR Camera (auto)", "capture --source webcam"],
     ["visioflow.exe", "VisioFlow\\\\VisioFlow QR Snip (copy)", "capture --source snip --trigger copy"]
   ],
   "architecture": {
     "64bit": {
-      "url": "https://github.com/zunaidFarouque/VisioFlow-QR/releases/download/v0.1.3/visioflow-win-x64.zip",
-      "hash": "sha256:2b538059bf1faeb3ed0e98452883162a50173416eb12d0562080357431db9c0b",
+      "url": "https://github.com/zunaidFarouque/VisioFlow-QR/releases/download/v0.1.4/visioflow-win-x64.zip",
+      "hash": "sha256:23d24d0fd778ba51e0ff3b129a8c38d62cbf130dce27c710706480cff6bf9972",
       "extract_dir": "visioflow-win-x64"
     }
   }

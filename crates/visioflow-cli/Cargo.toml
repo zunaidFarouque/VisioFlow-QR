@@ -48,6 +48,9 @@ windows = { version = "0.58", features = [
     "Win32_UI_Shell_PropertiesSystem",
 ] }
 
+[build-dependencies]
+winres = "0.1"
+
 [dev-dependencies]
 assert_cmd = "2"
 predicates = "3"

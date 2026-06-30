@@ -14,6 +14,7 @@ Release zip root (`visioflow-win-x64/`) should contain:
 - `visioflow.exe` — main CLI (webcam capture when built with default features)
 - `visioflow-toast.exe` — toast activation helper for notification copy actions
 - `models/` — WeChat CNN files (`detect.*`, `sr.*`) for webcam decode
+- `VisiFlow-QR.ico` — app icon (embedded in exes; used by Start Menu shortcuts)
 - `default-rules.json`
 - `install-shortcuts.ps1`
 - `bootstrap-portable.ps1`
@@ -47,7 +48,7 @@ cargo build --release -p visioflow-cli
 ## Publish checklist
 
 1. Run `.\scripts\build-release.ps1` and note the printed SHA256.
-2. Upload `dist/visioflow-win-x64.zip` to a GitHub release tag (e.g. `v0.1.3`).
+2. Upload `dist/visioflow-win-x64.zip` to a GitHub release tag (e.g. `v0.1.4`).
 3. Update `scripts/packaging/scoop/visioflow.json`:
    - `version`
    - `architecture.64bit.url` (release download URL)

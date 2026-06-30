@@ -436,6 +436,8 @@ fn install_toast_shortcut(
             .map_err(|e| e.to_string())?;
         link.SetPath(&HSTRING::from(exe_path.as_os_str()))
             .map_err(|e| e.to_string())?;
+        link.SetIconLocation(&HSTRING::from(exe_path.as_os_str()), 0)
+            .map_err(|e| e.to_string())?;
         link.SetWorkingDirectory(&HSTRING::from(working_dir.as_os_str()))
             .map_err(|e| e.to_string())?;
         link.SetDescription(&HSTRING::from("VisioFlow QR scanner"))

@@ -49,7 +49,7 @@ cd D:\tools\visioflow-win-x64
 powershell -ExecutionPolicy Bypass -File .\bootstrap-portable.ps1 -DistRoot . -Force
 ```
 
-**Official release:** [v0.1.3 — visioflow-win-x64.zip](https://github.com/zunaidFarouque/VisioFlow-QR/releases/download/v0.1.3/visioflow-win-x64.zip)
+**Official release:** [v0.1.4 — visioflow-win-x64.zip](https://github.com/zunaidFarouque/VisioFlow-QR/releases/download/v0.1.4/visioflow-win-x64.zip)
 
 See [[Distribution-and-Release]] for building and publishing release zips.
 

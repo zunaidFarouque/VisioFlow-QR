@@ -6,6 +6,7 @@
 
 param(
     [string]$BinPath,
+    [string]$IconPath,
     [string]$LauncherRoot,
     [string]$DesktopDir,
     [string]$StartMenuProgramsDir,
@@ -39,6 +40,23 @@ function Resolve-BinPath {
     throw "No visioflow.exe found. Build first: cargo build --release -p visioflow-cli --no-default-features"
 }
 
+function Resolve-IconLocation {
+    param(
+        [string]$Requested,
+        [string]$Bin
+    )
+
+    if ($Requested) {
+        $resolved = Resolve-Path -Path $Requested -ErrorAction SilentlyContinue
+        if (-not $resolved) {
+            throw "Icon not found at '$Requested'"
+        }
+        return "$($resolved.Path),0"
+    }
+
+    return "$Bin,0"
+}
+
 function Write-Wrapper {
     param(
         [string]$Path,
@@ -57,7 +75,8 @@ function New-Shortcut {
     param(
         [string]$Path,
         [string]$TargetPath,
-        [string]$Description
+        [string]$Description,
+        [string]$IconLocation
     )
 
     $shell = New-Object -ComObject WScript.Shell
@@ -65,6 +84,9 @@ function New-Shortcut {
     $shortcut.TargetPath = $TargetPath
     $shortcut.WorkingDirectory = Split-Path -Parent $TargetPath
     $shortcut.Description = $Description
+    if ($IconLocation) {
+        $shortcut.IconLocation = $IconLocation
+    }
     $shortcut.Save()
 }
 
@@ -92,6 +114,7 @@ function Remove-LegacyShortcuts {
 }
 
 $bin = Resolve-BinPath -Requested $BinPath
+$iconLocation = Resolve-IconLocation -Requested $IconPath -Bin $bin
 
 $launcherRoot = if ($LauncherRoot) { $LauncherRoot } else { Join-Path $env:APPDATA "VisioFlow\launchers" }
 $desktop = if ($DesktopDir) { $DesktopDir } else { [Environment]::GetFolderPath("Desktop") }
@@ -145,9 +168,10 @@ foreach ($entry in $wrappers) {
         throw "Shortcut exists for '$($entry.ShortcutName)' (rerun with -Force to overwrite)"
     }
 
-    New-Shortcut -Path $menuShortcut -TargetPath $wrapperPath -Description $entry.Description
+    New-Shortcut -Path $menuShortcut -TargetPath $wrapperPath -Description $entry.Description -IconLocation $iconLocation
 }
 
 Write-Host "Installed VisioFlow launchers in: $launcherRoot"
 Write-Host "Installed shortcuts in Start Menu\Programs\VisioFlow (no desktop shortcuts)"
+Write-Host "Shortcut icon: $iconLocation"
 Write-Host "Tip: map hotkeys in AHK/PowerToys to the .cmd launchers."

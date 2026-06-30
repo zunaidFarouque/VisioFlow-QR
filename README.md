@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="assets/VisiFlow-QR.ico" alt="VisioFlow" width="96">
+</p>
+
 # VisioFlow
 
 [![Build](https://github.com/zunaidFarouque/VisioFlow-QR/actions/workflows/build.yml/badge.svg)](https://github.com/zunaidFarouque/VisioFlow-QR/actions/workflows/build.yml)

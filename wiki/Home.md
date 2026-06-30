@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="https://raw.githubusercontent.com/zunaidFarouque/VisioFlow-QR/main/assets/VisiFlow-QR.ico" alt="VisioFlow" width="96">
+</p>
+
 # VisioFlow
 
 **Optical automation engine** — capture QR payloads from your screen or webcam, route them through rules, and trigger desktop actions (open URLs, WiFi handoff, run scripts, copy to clipboard).
@@ -72,5 +76,5 @@ visioflow notify test
 ## Repository
 
 - **GitHub:** [zunaidFarouque/VisioFlow-QR](https://github.com/zunaidFarouque/VisioFlow-QR)
-- **Release:** [v0.1.3](https://github.com/zunaidFarouque/VisioFlow-QR/releases/tag/v0.1.3)
+- **Release:** [v0.1.4](https://github.com/zunaidFarouque/VisioFlow-QR/releases/tag/v0.1.4)
 - **License:** MIT

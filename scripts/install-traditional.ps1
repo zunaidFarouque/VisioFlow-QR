@@ -68,6 +68,11 @@ if (Test-Path $distModels) {
     Copy-Item -Path $distModels -Destination (Join-Path $resolvedInstall "models") -Recurse -Force
 }
 
+$distIcon = Join-Path $resolvedDist "VisiFlow-QR.ico"
+if (Test-Path $distIcon) {
+    Copy-Item -Path $distIcon -Destination (Join-Path $resolvedInstall "VisiFlow-QR.ico") -Force
+}
+
 $installScript = Join-Path $resolvedDist "install-shortcuts.ps1"
 if (-not (Test-Path $installScript)) {
     $installScript = Join-Path $PSScriptRoot "install-shortcuts.ps1"

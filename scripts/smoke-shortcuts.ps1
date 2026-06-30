@@ -63,6 +63,12 @@ try {
     Assert-True ($snipAuto -match "--source snip") "snip-auto missing snip source"
 
     $startMenuFolder = Join-Path $programs "VisioFlow"
+    $sampleShortcut = Join-Path $startMenuFolder "VisioFlow QR Camera (auto).lnk"
+    $shell = New-Object -ComObject WScript.Shell
+    $lnk = $shell.CreateShortcut($sampleShortcut)
+    Assert-True ($lnk.IconLocation) "shortcut missing IconLocation"
+    Assert-True ($lnk.IconLocation -like "$bin*") "shortcut icon should reference visioflow.exe: $($lnk.IconLocation)"
+
     foreach ($shortcut in @(
         "VisioFlow QR Camera (auto).lnk",
         "VisioFlow QR Camera (copy).lnk",
