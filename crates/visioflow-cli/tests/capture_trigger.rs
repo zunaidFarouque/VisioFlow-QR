@@ -18,11 +18,7 @@ fn render_qr_fixture(path: &std::path::Path, payload: &str) {
             if modules[idx] == qrcode::Color::Dark {
                 for dy in 0..scale {
                     for dx in 0..scale {
-                        image.put_pixel(
-                            x as u32 * scale + dx,
-                            y as u32 * scale + dy,
-                            Luma([0u8]),
-                        );
+                        image.put_pixel(x as u32 * scale + dx, y as u32 * scale + dy, Luma([0u8]));
                     }
                 }
             }

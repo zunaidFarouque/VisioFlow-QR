@@ -10,7 +10,9 @@ use visioflow_core::opencv_webcam::exposure_table::VideoBackend;
 use visioflow_core::opencv_webcam::frame_stream::{FrameStream, OpenCvCaptureDriver};
 use visioflow_core::opencv_webcam::models::resolve_model_paths;
 use visioflow_core::opencv_webcam::wechat_decoder::WeChatCnnDecoder;
-use visioflow_core::traits::{BgrFrame, CnnQrDecoder, ExposureHal, LiveFrameSource, OpticalFilterKind};
+use visioflow_core::traits::{
+    BgrFrame, CnnQrDecoder, ExposureHal, LiveFrameSource, OpticalFilterKind,
+};
 
 use crate::commands::capture::{ExposureBracketMode, PreviewPosition};
 use crate::decode_worker::{AsyncDecodeWorker, DecodeOutcome};
@@ -138,9 +140,7 @@ where
                 if safe {
                     eprintln!("exposure: bracketing enabled after probe");
                 } else {
-                    eprintln!(
-                        "exposure: bracketing disabled (camera unsafe for manual override)"
-                    );
+                    eprintln!("exposure: bracketing disabled (camera unsafe for manual override)");
                 }
             }
             Ok(safe)
@@ -199,9 +199,7 @@ where
     let decode_worker = AsyncDecodeWorker::spawn(decoder);
 
     let mut window = Window::new(
-        &format!(
-            "VisioFlow Webcam ({capture_width}x{capture_height}) — OpenCV WeChat Scanner"
-        ),
+        &format!("VisioFlow Webcam ({capture_width}x{capture_height}) — OpenCV WeChat Scanner"),
         preview_width as usize,
         preview_height as usize,
         WindowOptions {
@@ -222,11 +220,8 @@ where
         Vec::with_capacity((preview_width as usize) * (preview_height as usize));
 
     let mut last_decode = Instant::now();
-    let mut bracket_state = BracketState::new(
-        bracket_config,
-        Instant::now(),
-        exposure.step_count(),
-    );
+    let mut bracket_state =
+        BracketState::new(bracket_config, Instant::now(), exposure.step_count());
     let mut in_override_mode = false;
     let mut decode_in_flight = false;
 
@@ -336,11 +331,8 @@ where
                 frame_source.flush_after_exposure_change(flush_grabs)?;
                 *in_override_mode = false;
                 *bracketing_enabled = false;
-                *bracket_state = BracketState::new(
-                    bracket_config,
-                    Instant::now(),
-                    exposure.step_count(),
-                );
+                *bracket_state =
+                    BracketState::new(bracket_config, Instant::now(), exposure.step_count());
                 return Ok(Some(true));
             }
 
@@ -352,11 +344,8 @@ where
             if sparse_step >= max_step {
                 exposure.enable_auto_exposure()?;
                 *in_override_mode = false;
-                *bracket_state = BracketState::new(
-                    bracket_config,
-                    Instant::now(),
-                    exposure.step_count(),
-                );
+                *bracket_state =
+                    BracketState::new(bracket_config, Instant::now(), exposure.step_count());
                 if verbose {
                     eprintln!("exposure: returning to auto/no-override mode");
                 }
@@ -366,11 +355,8 @@ where
         BracketAction::Exhausted => {
             exposure.enable_auto_exposure()?;
             *in_override_mode = false;
-            *bracket_state = BracketState::new(
-                bracket_config,
-                Instant::now(),
-                exposure.step_count(),
-            );
+            *bracket_state =
+                BracketState::new(bracket_config, Instant::now(), exposure.step_count());
             if verbose {
                 eprintln!("exposure: bracket exhausted, restarting in auto mode");
             }

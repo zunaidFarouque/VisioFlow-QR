@@ -46,7 +46,10 @@ mod tests {
         for backend in [VideoBackend::Dshow, VideoBackend::Msmf, VideoBackend::V4l2] {
             let steps = exposure_steps_for_backend(backend);
             for pair in steps.windows(2) {
-                assert!(pair[0] > pair[1], "table must decrease toward darker values");
+                assert!(
+                    pair[0] > pair[1],
+                    "table must decrease toward darker values"
+                );
             }
         }
     }

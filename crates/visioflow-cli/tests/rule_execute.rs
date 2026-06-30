@@ -101,7 +101,9 @@ fn rule_execute_wifi_yields_native_ssid() {
         ])
         .assert()
         .success()
-        .stdout(predicate::str::contains("QR_RAW=WIFI:T:WPA;S:lab;P:secret;;"))
+        .stdout(predicate::str::contains(
+            "QR_RAW=WIFI:T:WPA;S:lab;P:secret;;",
+        ))
         .stdout(predicate::str::contains("QR_NATIVE_WIFI_SSID=lab"));
 }
 
@@ -174,7 +176,10 @@ fn rule_execute_spawns_exec_with_resolved_env() {
 }
 
 #[cfg(windows)]
-fn write_env_echo_script(dir: &tempfile::TempDir, out_path: &std::path::Path) -> std::path::PathBuf {
+fn write_env_echo_script(
+    dir: &tempfile::TempDir,
+    out_path: &std::path::Path,
+) -> std::path::PathBuf {
     let script_path = dir.path().join("echo-asset.cmd");
     let body = format!(
         "@echo off\r\necho %QR_VAR_ASSET% > \"{}\"\r\n",
@@ -185,7 +190,10 @@ fn write_env_echo_script(dir: &tempfile::TempDir, out_path: &std::path::Path) ->
 }
 
 #[cfg(not(windows))]
-fn write_env_echo_script(dir: &tempfile::TempDir, out_path: &std::path::Path) -> std::path::PathBuf {
+fn write_env_echo_script(
+    dir: &tempfile::TempDir,
+    out_path: &std::path::Path,
+) -> std::path::PathBuf {
     use std::os::unix::fs::PermissionsExt;
 
     let script_path = dir.path().join("echo-asset.sh");

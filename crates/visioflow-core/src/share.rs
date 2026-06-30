@@ -25,9 +25,7 @@ fn share_roots() -> Vec<PathBuf> {
         roots.push(PathBuf::from(share));
     }
 
-    roots.push(
-        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../share"),
-    );
+    roots.push(PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../share"));
 
     roots
 }

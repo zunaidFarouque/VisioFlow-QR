@@ -32,8 +32,7 @@ pub fn otsu_threshold(image: &GrayImage) -> u8 {
 
         sum_background += t as f64 * count as f64;
         let mean_background = sum_background / weight_background as f64;
-        let mean_foreground =
-            (sum - sum_background) / weight_foreground as f64;
+        let mean_foreground = (sum - sum_background) / weight_foreground as f64;
 
         let weight_bg = weight_background as f64 / total as f64;
         let weight_fg = weight_foreground as f64 / total as f64;

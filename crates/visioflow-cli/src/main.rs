@@ -2,26 +2,25 @@ use std::path::PathBuf;
 
 use clap::{Parser, Subcommand, ValueEnum};
 use visioflow_cli::commands::capture::{
-    apply_capture_halts, apply_routing_after_halts, route_mode_from_trigger, run_capture,
-    write_capture_output, CaptureAction, CaptureArgs, CaptureFilter, CaptureSource,
-    ExposureBracketMode, OnMismatch, PreviewPosition, RoutingApplyResult,
-    WifiHandoffMode,
+    apply_capture_halts, apply_routing_after_halts, decide_ipc_routing, route_mode_from_trigger,
+    run_capture, write_capture_output, CaptureAction, CaptureArgs, CaptureFilter, CaptureNotify,
+    CaptureSource, ExposureBracketMode, IpcRoutingDecision, OnMismatch, PreviewPosition,
+    RoutingApplyResult, WifiHandoffMode,
 };
-use visioflow_cli::commands::exec::spawn_rule_actions;
 use visioflow_cli::commands::daemon::{
     daemon_reload_ipc, daemon_start, daemon_status, daemon_stop, default_pid_path,
     route_capture_trigger_via_ipc, rule_execute_via_ipc, run_daemon_server_loop,
 };
+use visioflow_cli::commands::exec::spawn_rule_actions;
 use visioflow_cli::commands::rule::{
-    map_rule_error, open_store, rule_config, rule_create, rule_delete, rule_execute, rule_init_defaults,
-    rule_list, rule_set_action, write_resolved_output, write_rule_list_output, RuleOutputFormat,
+    map_rule_error, open_store, rule_config, rule_create, rule_delete, rule_execute,
+    rule_init_defaults, rule_list, rule_set_action, write_resolved_output, write_rule_list_output,
+    RuleOutputFormat,
 };
 #[cfg(feature = "opencv-webcam")]
 use visioflow_cli::webcam_preview::DEFAULT_DECODE_INTERVAL_MS;
 #[cfg(feature = "opencv-webcam")]
-use visioflow_cli::webcam_session::{
-    DEFAULT_EXPOSURE_FLUSH_GRABS, DEFAULT_EXPOSURE_STEP_MS,
-};
+use visioflow_cli::webcam_session::{DEFAULT_EXPOSURE_FLUSH_GRABS, DEFAULT_EXPOSURE_STEP_MS};
 
 #[cfg(not(feature = "opencv-webcam"))]
 const DEFAULT_DECODE_INTERVAL_MS: u64 = 100;
@@ -32,7 +31,10 @@ const DEFAULT_EXPOSURE_STEP_MS: u64 = 100;
 use visioflow_core::default_socket_path;
 
 #[derive(Debug, Parser)]
-#[command(name = "visioflow", about = "Optical automation engine for visual payload routing")]
+#[command(
+    name = "visioflow",
+    about = "Optical automation engine for visual payload routing"
+)]
 struct Cli {
     #[arg(long, value_enum, default_value = "plain")]
     output: OutputFormat,
@@ -144,6 +146,10 @@ enum Commands {
         #[arg(long, value_enum, default_value = "open-settings")]
         wifi_handoff: WifiHandoffMode,
 
+        /// Desktop notifications for routing outcomes
+        #[arg(long, default_value_t = false)]
+        notify: bool,
+
         /// Interactive list when multiple payloads are decoded
         #[arg(long)]
         select: bool,
@@ -194,9 +200,7 @@ enum DaemonCommands {
 #[derive(Debug, Subcommand)]
 enum RuleCommands {
     /// Create a new empty rule
-    Create {
-        name: String,
-    },
+    Create { name: String },
 
     /// Configure regex and capture mappings for a rule
     Config {
@@ -237,9 +241,7 @@ enum RuleCommands {
     List,
 
     /// Remove a rule from the store
-    Delete {
-        name: String,
-    },
+    Delete { name: String },
 
     /// Install stock default routing rules
     InitDefaults {
@@ -303,26 +305,15 @@ fn run() -> visioflow_core::error::Result<()> {
                     rule_create(&store, &name).map_err(map_rule_error)?;
                 }
                 RuleCommands::Config { name, regex, map } => {
-                    rule_config(
-                        &store,
-                        &name,
-                        regex.as_deref(),
-                        &map,
-                    )
-                    .map_err(map_rule_error)?;
+                    rule_config(&store, &name, regex.as_deref(), &map).map_err(map_rule_error)?;
                 }
                 RuleCommands::SetAction {
                     name,
                     exec,
                     wifi_connect,
                 } => {
-                    rule_set_action(
-                        &store,
-                        &name,
-                        exec.as_deref(),
-                        wifi_connect,
-                    )
-                    .map_err(map_rule_error)?;
+                    rule_set_action(&store, &name, exec.as_deref(), wifi_connect)
+                        .map_err(map_rule_error)?;
                 }
                 RuleCommands::Execute {
                     name,
@@ -335,7 +326,8 @@ fn run() -> visioflow_core::error::Result<()> {
                         let routed =
                             rule_execute(&store, &name, &payload).map_err(map_rule_error)?;
                         if !no_exec {
-                            spawn_rule_actions(&routed.rule, &routed.vars).map_err(map_rule_error)?;
+                            spawn_rule_actions(&routed.rule, &routed.vars)
+                                .map_err(map_rule_error)?;
                         }
                         routed.vars
                     };
@@ -417,6 +409,7 @@ fn run() -> visioflow_core::error::Result<()> {
             only,
             on_mismatch,
             wifi_handoff,
+            notify,
             select,
             interactive,
             store: rule_store,
@@ -439,6 +432,7 @@ fn run() -> visioflow_core::error::Result<()> {
                 only: only.clone(),
                 on_mismatch,
                 wifi_handoff,
+                notify,
                 rule_store: rule_store.clone(),
                 select,
                 interactive,
@@ -446,13 +440,8 @@ fn run() -> visioflow_core::error::Result<()> {
 
             let mut stdin = std::io::stdin().lock();
             let mut stderr = std::io::stderr().lock();
-            let payloads = apply_capture_halts(
-                payloads,
-                select,
-                interactive,
-                &mut stdin,
-                &mut stderr,
-            )?;
+            let payloads =
+                apply_capture_halts(payloads, select, interactive, &mut stdin, &mut stderr)?;
 
             let routing_active = trigger.is_some() || action.is_none();
 
@@ -471,14 +460,34 @@ fn run() -> visioflow_core::error::Result<()> {
                     }
                 }
 
-                let explicit_ipc_trigger = trigger.as_deref().filter(|name| {
-                    *name != "copy" && *name != "plain" && *name != "auto"
-                });
+                let store = open_store(rule_store.clone());
+                let mode = route_mode_from_trigger(trigger.as_deref(), &except, &only);
+                let explicit_ipc_trigger = trigger
+                    .as_deref()
+                    .filter(|name| !visioflow_core::is_builtin_trigger(name) && *name != "auto");
 
-                if let (Some(ref socket), Some(rule_name)) =
-                    (ipc_socket.as_ref(), explicit_ipc_trigger)
+                let ipc_decision =
+                    if let Some(rule_name) = explicit_ipc_trigger {
+                        Some(IpcRoutingDecision::ExecuteMatchedRule {
+                            rule_name: rule_name.to_owned(),
+                        })
+                    } else if ipc_socket.is_some() {
+                        let payload = payloads.first().ok_or_else(|| {
+                            visioflow_core::VisioFlowError::Capture(
+                                "no payloads decoded for routing".into(),
+                            )
+                        })?;
+                        Some(decide_ipc_routing(&store, payload, &mode).map_err(|err| {
+                            visioflow_core::VisioFlowError::Capture(err.to_string())
+                        })?)
+                    } else {
+                        None
+                    };
+
+                if let (Some(socket), Some(IpcRoutingDecision::ExecuteMatchedRule { rule_name })) =
+                    (ipc_socket.as_ref(), ipc_decision)
                 {
-                    let vars = route_capture_trigger_via_ipc(socket, rule_name, &payloads)?;
+                    let vars = route_capture_trigger_via_ipc(socket, &rule_name, &payloads)?;
                     if let Some(export_fmt) = cli.export {
                         let map = visioflow_core::vars_from_resolved(&vars);
                         write_export_output(&map, export_fmt, cli.silent)?;
@@ -488,14 +497,19 @@ fn run() -> visioflow_core::error::Result<()> {
                         write_resolved_output(&vars, RuleOutputFormat::Plain, cli.silent)?;
                     }
                 } else {
-                    let store = open_store(rule_store);
-                    let mode = route_mode_from_trigger(trigger.as_deref(), &except, &only);
+                    let notify_mode = if notify {
+                        CaptureNotify::On
+                    } else {
+                        CaptureNotify::Off
+                    };
                     let result = apply_routing_after_halts(
                         &store,
                         &payloads,
                         mode,
                         on_mismatch,
                         wifi_handoff,
+                        notify_mode,
+                        cli.verbose,
                         cli.silent,
                     )?;
 
@@ -510,7 +524,9 @@ fn run() -> visioflow_core::error::Result<()> {
                                     RuleOutputFormat::Json,
                                     cli.silent,
                                 )?;
-                            } else if matches!(action, Some(CaptureAction::Stdout)) || trigger.is_some() {
+                            } else if matches!(action, Some(CaptureAction::Stdout))
+                                || trigger.is_some()
+                            {
                                 write_resolved_output(
                                     &routed.vars,
                                     RuleOutputFormat::Plain,
@@ -553,7 +569,7 @@ fn run() -> visioflow_core::error::Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use clap::Parser;
+    use clap::{CommandFactory, Parser};
 
     #[test]
     fn capture_defaults_preview_position_and_scale() {
@@ -711,6 +727,7 @@ mod tests {
             "none",
             "--wifi-handoff",
             "print",
+            "--notify",
         ])
         .expect("cli should parse");
 
@@ -722,6 +739,7 @@ mod tests {
                 only,
                 on_mismatch,
                 wifi_handoff,
+                notify,
                 ..
             } => {
                 assert!(action.is_none());
@@ -730,9 +748,32 @@ mod tests {
                 assert_eq!(only, vec!["url"]);
                 assert!(matches!(on_mismatch, OnMismatch::None));
                 assert!(matches!(wifi_handoff, WifiHandoffMode::Print));
+                assert!(notify);
             }
             Commands::Rule { .. } | Commands::Daemon { .. } => panic!("expected capture"),
         }
+    }
+
+    #[test]
+    fn capture_notify_defaults_to_false() {
+        let cli = Cli::try_parse_from(["visioflow", "capture", "--source", "snip"])
+            .expect("cli should parse");
+
+        match cli.command {
+            Commands::Capture { notify, .. } => assert!(!notify),
+            Commands::Rule { .. } | Commands::Daemon { .. } => panic!("expected capture"),
+        }
+    }
+
+    #[test]
+    fn capture_help_mentions_notify_flag() {
+        let mut root = Cli::command();
+        let help = root
+            .find_subcommand_mut("capture")
+            .expect("capture command")
+            .render_help()
+            .to_string();
+        assert!(help.contains("--notify"));
     }
 
     #[test]

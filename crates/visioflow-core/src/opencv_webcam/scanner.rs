@@ -31,7 +31,8 @@ where
 {
     fn scan_until(&self, deadline: Instant) -> Result<Vec<String>> {
         self.exposure_hal.disable_auto_exposure()?;
-        let mut bracket = BracketState::new(self.config, Instant::now(), self.exposure_hal.step_count());
+        let mut bracket =
+            BracketState::new(self.config, Instant::now(), self.exposure_hal.step_count());
 
         while Instant::now() < deadline {
             let frame = self.frame_source.latest_frame()?;
@@ -137,7 +138,10 @@ mod tests {
         }
 
         fn set_step(&self, step_index: usize) -> Result<()> {
-            self.set_calls.lock().expect("lock set_calls").push(step_index);
+            self.set_calls
+                .lock()
+                .expect("lock set_calls")
+                .push(step_index);
             Ok(())
         }
 

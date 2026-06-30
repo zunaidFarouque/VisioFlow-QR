@@ -1,18 +1,11 @@
 use std::collections::{BTreeMap, HashSet};
 
-use crate::rules::{
-    route_payload, AutoRouteOptions, RouteMode, Rule, RuleError, RoutingEvent,
-};
+use crate::rules::{route_payload, AutoRouteOptions, RouteMode, RoutingEvent, Rule, RuleError};
 
 fn mock_store(rules: Vec<Rule>) -> crate::rules::store::MockRuleStore {
-    let map: BTreeMap<String, Rule> = rules
-        .into_iter()
-        .map(|r| (r.name.clone(), r))
-        .collect();
+    let map: BTreeMap<String, Rule> = rules.into_iter().map(|r| (r.name.clone(), r)).collect();
     let mut store = crate::rules::store::MockRuleStore::new();
-    store
-        .expect_load_all()
-        .returning(move || Ok(map.clone()));
+    store.expect_load_all().returning(move || Ok(map.clone()));
     store
 }
 
@@ -109,17 +102,10 @@ fn route_auto_excludes_except_names() {
     let store = mock_store(vec![url_rule(), plain_catch_all_rule()]);
     let mut except = HashSet::new();
     except.insert("url".to_owned());
-    let options = AutoRouteOptions {
-        except,
-        only: None,
-    };
+    let options = AutoRouteOptions { except, only: None };
 
-    let result = route_payload(
-        &store,
-        RouteMode::Auto(options),
-        "https://example.com",
-    )
-    .expect("route");
+    let result =
+        route_payload(&store, RouteMode::Auto(options), "https://example.com").expect("route");
 
     assert_eq!(result.routed.expect("plain fallback").rule.name, "plain");
 }
@@ -183,8 +169,8 @@ fn route_explicit_matches_named_rule() {
         .times(1)
         .returning(move |_| Ok(asset.clone()));
 
-    let result = route_payload(&store, RouteMode::Explicit("asset".to_owned()), "ASSET:42")
-        .expect("route");
+    let result =
+        route_payload(&store, RouteMode::Explicit("asset".to_owned()), "ASSET:42").expect("route");
 
     assert!(matches!(
         result.event,
@@ -194,11 +180,7 @@ fn route_explicit_matches_named_rule() {
         } if rule == "asset"
     ));
     assert_eq!(
-        result
-            .routed
-            .expect("routed")
-            .vars
-            .get("QR_VAR_ASSET"),
+        result.routed.expect("routed").vars.get("QR_VAR_ASSET"),
         Some("42")
     );
 }

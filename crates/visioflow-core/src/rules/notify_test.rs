@@ -1,6 +1,4 @@
-use crate::rules::{
-    format_routing_json_line, format_routing_message, RoutingEvent,
-};
+use crate::rules::{format_routing_json_line, format_routing_message, RoutingEvent};
 
 #[test]
 fn format_auto_matched_message() {
@@ -52,7 +50,10 @@ fn format_routing_json_line_matched() {
         rule: "url".to_owned(),
         auto_route: true,
     });
-    assert_eq!(line, r#"{"event":"rule_matched","rule":"url","fallback":false}"#);
+    assert_eq!(
+        line,
+        r#"{"event":"rule_matched","rule":"url","fallback":false}"#
+    );
 }
 
 #[test]

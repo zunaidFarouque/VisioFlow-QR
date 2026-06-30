@@ -17,8 +17,7 @@ fn pipeline_produces_binary_image_from_noisy_grayscale() {
 
     let processed = run_optical_pipeline(&image, OpticalFilterKind::Otsu);
 
-    let unique: std::collections::HashSet<u8> =
-        processed.pixels().map(|p| p[0]).collect();
+    let unique: std::collections::HashSet<u8> = processed.pixels().map(|p| p[0]).collect();
     assert!(
         unique.len() <= 2,
         "pipeline output should be binary, got {unique:?}"

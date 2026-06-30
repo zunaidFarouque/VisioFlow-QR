@@ -159,9 +159,8 @@ pub fn write_rule_list_output(
             }
         }
         RuleOutputFormat::Json => {
-            let json = serde_json::to_string(rules).map_err(|e| {
-                VisioFlowError::Capture(format!("json encode failed: {e}"))
-            })?;
+            let json = serde_json::to_string(rules)
+                .map_err(|e| VisioFlowError::Capture(format!("json encode failed: {e}")))?;
             println!("{json}");
         }
     }
@@ -169,11 +168,7 @@ pub fn write_rule_list_output(
     Ok(())
 }
 
-pub fn rule_execute(
-    store: &FileRuleStore,
-    name: &str,
-    payload: &str,
-) -> RuleResult<RoutedPayload> {
+pub fn rule_execute(store: &FileRuleStore, name: &str, payload: &str) -> RuleResult<RoutedPayload> {
     let engine = RuleEngine::new(store.clone());
     engine.route_fully(name, payload)
 }
@@ -194,11 +189,9 @@ pub fn write_resolved_output(
             }
         }
         RuleOutputFormat::Json => {
-            let map: std::collections::BTreeMap<&str, &str> =
-                vars.iter().collect();
-            let json = serde_json::to_string(&map).map_err(|e| {
-                VisioFlowError::Capture(format!("json encode failed: {e}"))
-            })?;
+            let map: std::collections::BTreeMap<&str, &str> = vars.iter().collect();
+            let json = serde_json::to_string(&map)
+                .map_err(|e| VisioFlowError::Capture(format!("json encode failed: {e}")))?;
             println!("{json}");
         }
     }
@@ -212,10 +205,10 @@ pub fn map_rule_error(err: RuleError) -> VisioFlowError {
 
 #[cfg(test)]
 mod tests {
-    use visioflow_core::apply_rule;
     use super::*;
     use std::collections::BTreeMap;
     use tempfile::TempDir;
+    use visioflow_core::apply_rule;
 
     fn temp_store() -> (TempDir, FileRuleStore) {
         let dir = TempDir::new().expect("tempdir");
@@ -275,7 +268,11 @@ mod tests {
         assert_eq!(url.priority, 10);
         assert!(url.auto_compatible);
         let exec = url.exec.as_ref().expect("url exec");
-        assert!(exec.is_file(), "exec should resolve to existing script: {}", exec.display());
+        assert!(
+            exec.is_file(),
+            "exec should resolve to existing script: {}",
+            exec.display()
+        );
         #[cfg(windows)]
         assert!(exec.extension().is_some_and(|e| e == "ps1"));
         #[cfg(not(windows))]
@@ -340,8 +337,7 @@ mod tests {
         let (_dir, store) = temp_store();
         rule_create(&store, "run").expect("create");
 
-        rule_set_action(&store, "run", Some(Path::new("/bin/echo")), false)
-            .expect("set-action");
+        rule_set_action(&store, "run", Some(Path::new("/bin/echo")), false).expect("set-action");
 
         let rule = store.get("run").expect("rule");
         assert_eq!(rule.exec.as_deref(), Some(Path::new("/bin/echo")));
@@ -415,23 +411,14 @@ mod tests {
         let json = serde_json::to_string(&rules).expect("json");
         let parsed: Vec<Rule> = serde_json::from_str(&json).expect("parse");
         assert_eq!(parsed[0].name, "asset");
-        assert_eq!(
-            parsed[0].regex.as_deref(),
-            Some(r"ASSET:(?P<asset>\d+)")
-        );
+        assert_eq!(parsed[0].regex.as_deref(), Some(r"ASSET:(?P<asset>\d+)"));
     }
 
     #[test]
     fn rule_execute_resolves_vars_via_store() {
         let (_dir, store) = temp_store();
         rule_create(&store, "asset").expect("create");
-        rule_config(
-            &store,
-            "asset",
-            Some(r"ASSET:(?P<asset>\d+)"),
-            &[],
-        )
-        .expect("config");
+        rule_config(&store, "asset", Some(r"ASSET:(?P<asset>\d+)"), &[]).expect("config");
 
         let resolved = rule_execute(&store, "asset", "ASSET:42").expect("execute");
         assert_eq!(resolved.vars.raw(), Some("ASSET:42"));

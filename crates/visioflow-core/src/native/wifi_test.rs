@@ -69,12 +69,18 @@ fn unescapes_special_characters_in_wifi_fields() {
 
     let vars = parser.parse(raw);
 
-    assert_eq!(vars.get("QR_NATIVE_WIFI_SSID").map(String::as_str), Some("My;Network"));
+    assert_eq!(
+        vars.get("QR_NATIVE_WIFI_SSID").map(String::as_str),
+        Some("My;Network")
+    );
     assert_eq!(
         vars.get("QR_NATIVE_WIFI_PASSWORD").map(String::as_str),
         Some("pa;ss")
     );
-    assert_eq!(vars.get("QR_NATIVE_WIFI_HIDDEN").map(String::as_str), Some("false"));
+    assert_eq!(
+        vars.get("QR_NATIVE_WIFI_HIDDEN").map(String::as_str),
+        Some("false")
+    );
 }
 
 #[test]

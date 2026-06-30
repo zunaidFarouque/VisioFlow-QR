@@ -69,8 +69,14 @@ fn omits_path_key_when_uri_has_no_path_segment() {
 
     let vars = parser.parse(raw);
 
-    assert_eq!(vars.get("QR_NATIVE_URI_SCHEME").map(String::as_str), Some("https"));
-    assert_eq!(vars.get("QR_NATIVE_URI_HOST").map(String::as_str), Some("example.com"));
+    assert_eq!(
+        vars.get("QR_NATIVE_URI_SCHEME").map(String::as_str),
+        Some("https")
+    );
+    assert_eq!(
+        vars.get("QR_NATIVE_URI_HOST").map(String::as_str),
+        Some("example.com")
+    );
     assert!(!vars.contains_key("QR_NATIVE_URI_PATH"));
     assert!(!vars.contains_key("QR_NATIVE_URI_PORT"));
 }

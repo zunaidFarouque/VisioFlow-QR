@@ -23,33 +23,49 @@ pub type RequestId = u64;
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum ClientMessage {
-    Ping { id: RequestId },
+    Ping {
+        id: RequestId,
+    },
     ExecuteRule {
         id: RequestId,
         name: String,
         payload: String,
     },
-    ListRules { id: RequestId },
-    Reload { id: RequestId },
+    ListRules {
+        id: RequestId,
+    },
+    Reload {
+        id: RequestId,
+    },
 }
 
 /// Daemon → client message.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum ServerMessage {
-    Pong { id: RequestId },
+    Pong {
+        id: RequestId,
+    },
     RuleResult {
         id: RequestId,
         vars: HashMap<String, String>,
         #[serde(skip_serializing_if = "Option::is_none")]
         exit_code: Option<i32>,
     },
-    Error { id: RequestId, message: String },
-    RulesList { id: RequestId, names: Vec<String> },
+    Error {
+        id: RequestId,
+        message: String,
+    },
+    RulesList {
+        id: RequestId,
+        names: Vec<String>,
+    },
 }
 
 /// Serialize a client message as one newline-terminated JSON line.
-pub fn serialize_client_line(msg: &ClientMessage) -> std::result::Result<String, serde_json::Error> {
+pub fn serialize_client_line(
+    msg: &ClientMessage,
+) -> std::result::Result<String, serde_json::Error> {
     let mut line = serde_json::to_string(msg)?;
     line.push('\n');
     Ok(line)
@@ -63,7 +79,9 @@ pub fn deserialize_client_line(
 }
 
 /// Serialize a server message as one newline-terminated JSON line.
-pub fn serialize_server_line(msg: &ServerMessage) -> std::result::Result<String, serde_json::Error> {
+pub fn serialize_server_line(
+    msg: &ServerMessage,
+) -> std::result::Result<String, serde_json::Error> {
     let mut line = serde_json::to_string(msg)?;
     line.push('\n');
     Ok(line)
@@ -229,9 +247,7 @@ mod tests {
             .returning(|| Ok(ServerMessage::Pong { id: 1 }));
 
         server.accept().unwrap();
-        client
-            .send_request(ClientMessage::Ping { id: 1 })
-            .unwrap();
+        client.send_request(ClientMessage::Ping { id: 1 }).unwrap();
         let client_response = client.recv_response().unwrap();
         let server_response = server.handle_one_message().unwrap();
 
@@ -280,7 +296,11 @@ mod tests {
         let response = client.recv_response().unwrap();
 
         match response {
-            ServerMessage::RuleResult { id, vars, exit_code } => {
+            ServerMessage::RuleResult {
+                id,
+                vars,
+                exit_code,
+            } => {
                 assert_eq!(id, 10);
                 assert_eq!(vars.get("QR_VAR_ASSET").map(String::as_str), Some("999"));
                 assert_eq!(exit_code, Some(0));

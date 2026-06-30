@@ -124,10 +124,7 @@ fn route_auto<S: RuleStore>(
     })
 }
 
-fn auto_candidates<S: RuleStore>(
-    store: &S,
-    options: &AutoRouteOptions,
-) -> Result<Vec<Rule>> {
+fn auto_candidates<S: RuleStore>(store: &S, options: &AutoRouteOptions) -> Result<Vec<Rule>> {
     let all = store.load_all()?;
     let mut candidates: Vec<Rule> = all
         .into_values()
@@ -142,7 +139,11 @@ fn auto_candidates<S: RuleStore>(
         })
         .collect();
 
-    candidates.sort_by(|a, b| a.priority.cmp(&b.priority).then_with(|| a.name.cmp(&b.name)));
+    candidates.sort_by(|a, b| {
+        a.priority
+            .cmp(&b.priority)
+            .then_with(|| a.name.cmp(&b.name))
+    });
     Ok(candidates)
 }
 

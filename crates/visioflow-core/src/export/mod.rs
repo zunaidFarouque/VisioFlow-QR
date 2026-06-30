@@ -30,13 +30,17 @@ pub fn vars_from_resolved(resolved: &ResolvedVars) -> HashMap<String, String> {
 /// Emit bash `export KEY='value'` lines for parent-shell `eval`.
 #[must_use]
 pub fn emit_bash(vars: &HashMap<String, String>) -> String {
-    emit_sorted(vars, |key, value| format!("export {key}={}", bash_quote(value)))
+    emit_sorted(vars, |key, value| {
+        format!("export {key}={}", bash_quote(value))
+    })
 }
 
 /// Emit PowerShell `$env:KEY = 'value'` lines for parent-shell dot-sourcing.
 #[must_use]
 pub fn emit_ps1(vars: &HashMap<String, String>) -> String {
-    emit_sorted(vars, |key, value| format!("$env:{key} = {}", ps1_quote(value)))
+    emit_sorted(vars, |key, value| {
+        format!("$env:{key} = {}", ps1_quote(value))
+    })
 }
 
 fn emit_sorted<F>(vars: &HashMap<String, String>, line: F) -> String

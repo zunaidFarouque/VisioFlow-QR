@@ -68,7 +68,9 @@ fn resolve_models_dir() -> Result<PathBuf> {
     }
 
     let exe = std::env::current_exe().map_err(|error| {
-        VisioFlowError::Capture(format!("failed to resolve current executable path: {error}"))
+        VisioFlowError::Capture(format!(
+            "failed to resolve current executable path: {error}"
+        ))
     })?;
     for ancestor in exe.ancestors() {
         let candidate = ancestor.join("models");

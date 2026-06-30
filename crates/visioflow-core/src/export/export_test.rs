@@ -35,10 +35,7 @@ fn emit_bash_escapes_single_quotes() {
     let mut vars = HashMap::new();
     vars.insert("QR_RAW".to_string(), "it's a $test".to_string());
 
-    assert_eq!(
-        emit_bash(&vars),
-        "export QR_RAW='it'\\''s a $test'\n"
-    );
+    assert_eq!(emit_bash(&vars), "export QR_RAW='it'\\''s a $test'\n");
 }
 
 #[test]
@@ -46,19 +43,13 @@ fn emit_ps1_escapes_single_quotes() {
     let mut vars = HashMap::new();
     vars.insert("QR_RAW".to_string(), "it's a $test".to_string());
 
-    assert_eq!(
-        emit_ps1(&vars),
-        "$env:QR_RAW = 'it''s a $test'\n"
-    );
+    assert_eq!(emit_ps1(&vars), "$env:QR_RAW = 'it''s a $test'\n");
 }
 
 #[test]
 fn emit_bash_special_characters_stay_literal() {
     let mut vars = HashMap::new();
-    vars.insert(
-        "QR_RAW".to_string(),
-        "a\"b`c\\d&e|f;g".to_string(),
-    );
+    vars.insert("QR_RAW".to_string(), "a\"b`c\\d&e|f;g".to_string());
 
     let out = emit_bash(&vars);
     assert_eq!(out, "export QR_RAW='a\"b`c\\d&e|f;g'\n");

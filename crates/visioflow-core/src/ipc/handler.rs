@@ -1,18 +1,17 @@
 //! Daemon-side request handling for IPC messages.
 //!
-//! [`ClientMessage::ExecuteRule`] always takes an explicit rule `name` (same as
-//! `visioflow rule execute <NAME>`). Auto-routing (`route_payload` / omitting
-//! `--trigger` on capture) is CLI-local today; clients that need auto mode should
-//! run `capture` without `--ipc-socket`, or resolve the rule name client-side and
-//! send `execute_rule` with that name.
+//! [`ClientMessage::ExecuteRule`] takes an explicit rule `name` (same as
+//! `visioflow rule execute <NAME>`). Capture auto-routing over `--ipc-socket`
+//! is supported by a pragmatic client-side flow: the CLI resolves the auto match
+//! locally with canonical `route_payload`, then executes the matched rule in the daemon.
 
 use std::collections::BTreeMap;
 
 use crate::ipc::{ClientMessage, RequestId, ServerMessage};
 use crate::logging::{format_log_line, redact_env_map};
 use crate::rules::{
-    run_rule_actions, FileRuleStore, ResolvedVars, Rule, RuleEngine, RuleError, RuleResult,
-    RuleStore, RoutedPayload,
+    run_rule_actions, FileRuleStore, ResolvedVars, RoutedPayload, Rule, RuleEngine, RuleError,
+    RuleResult, RuleStore,
 };
 use crate::sys::platform_executor;
 
@@ -158,6 +157,18 @@ fn rule_error_response(id: RequestId, err: RuleError) -> ServerMessage {
         RuleError::NotFound(missing) => ServerMessage::Error {
             id,
             message: format!("rule not found: {missing}"),
+        },
+        RuleError::WifiConnectFailed(detail) => ServerMessage::Error {
+            id,
+            message: format!(
+                "wifi connect failed: {detail}. Hint: verify location permission is enabled and WiFi control is allowed by your system policy."
+            ),
+        },
+        RuleError::ExecFailed(detail) => ServerMessage::Error {
+            id,
+            message: format!(
+                "exec failed: {detail}. Hint: confirm the action path exists and is allowed by endpoint policy."
+            ),
         },
         other => ServerMessage::Error {
             id,

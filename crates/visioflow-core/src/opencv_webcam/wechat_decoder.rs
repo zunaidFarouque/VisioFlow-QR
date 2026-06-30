@@ -62,12 +62,13 @@ impl CnnQrDecoder for WeChatCnnDecoder {
         })?;
         dst.copy_from_slice(&frame.data[..pixels]);
 
-        let mut decoder = self.inner.lock().map_err(|_| {
-            VisioFlowError::Decode("WeChat decoder mutex poisoned".into())
+        let mut decoder = self
+            .inner
+            .lock()
+            .map_err(|_| VisioFlowError::Decode("WeChat decoder mutex poisoned".into()))?;
+        let payloads = decoder.detect_and_decode_def(&mat).map_err(|error| {
+            VisioFlowError::Decode(format!("WeChat detect_and_decode failed: {error}"))
         })?;
-        let payloads = decoder
-            .detect_and_decode_def(&mat)
-            .map_err(|error| VisioFlowError::Decode(format!("WeChat detect_and_decode failed: {error}")))?;
         let mut clean: Vec<String> = payloads
             .into_iter()
             .map(|value| value.trim().to_string())

@@ -62,6 +62,8 @@ Run a named rule against a payload string (same semantics as `visioflow rule exe
 | `name` | `string` | yes — rule name |
 | `payload` | `string` | yes — raw QR / barcode text |
 
+Capture auto-route with `--ipc-socket` is implemented client-side: CLI resolves auto-match locally and then sends `execute_rule` with the matched rule name.
+
 ### `list_rules`
 
 List all configured rule names.

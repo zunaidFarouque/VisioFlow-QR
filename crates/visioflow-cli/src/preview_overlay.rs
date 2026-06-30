@@ -27,7 +27,11 @@ pub fn blend_pixel(bg: u32, fg_r: u8, fg_g: u8, fg_b: u8, alpha: f32) -> u32 {
 
 #[must_use]
 pub fn overlay_scale_for_height(height: u32) -> u32 {
-    if height >= 240 { 2 } else { 1 }
+    if height >= 240 {
+        2
+    } else {
+        1
+    }
 }
 
 /// Draw a reassurance banner along the bottom of the preview buffer.
@@ -71,7 +75,19 @@ pub fn draw_preview_status_overlay(
 
     let mut y = panel_top + PANEL_PADDING;
     for line in lines {
-        draw_text_alpha(buffer, width, height, PANEL_PADDING, y, line, scale, 255, 255, 255, TEXT_ALPHA);
+        draw_text_alpha(
+            buffer,
+            width,
+            height,
+            PANEL_PADDING,
+            y,
+            line,
+            scale,
+            255,
+            255,
+            255,
+            TEXT_ALPHA,
+        );
         y += char_h + LINE_GAP;
     }
 }
@@ -116,17 +132,7 @@ fn draw_text_alpha(
     let mut cursor_x = x;
     for ch in text.chars() {
         draw_char_alpha(
-            buffer,
-            width,
-            height,
-            cursor_x,
-            y,
-            ch,
-            scale,
-            r,
-            g,
-            b,
-            alpha,
+            buffer, width, height, cursor_x, y, ch, scale, r, g, b, alpha,
         );
         cursor_x = cursor_x.saturating_add(8 * scale);
     }

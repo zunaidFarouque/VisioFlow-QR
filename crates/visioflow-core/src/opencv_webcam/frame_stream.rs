@@ -84,9 +84,10 @@ impl<D: CaptureDriver + 'static> LiveFrameSource for FrameStream<D> {
     fn flush_after_exposure_change(&self, grabs: u32) -> Result<()> {
         let start = self.inner.grab_count.load(Ordering::Acquire);
         let target = start.saturating_add(u64::from(grabs));
-        let mut guard = self.inner.grab_pair.0.lock().map_err(|_| {
-            VisioFlowError::Capture("failed to lock frame flush condition".into())
-        })?;
+        let mut guard =
+            self.inner.grab_pair.0.lock().map_err(|_| {
+                VisioFlowError::Capture("failed to lock frame flush condition".into())
+            })?;
         while self.inner.grab_count.load(Ordering::Acquire) < target {
             guard = self
                 .inner
@@ -139,12 +140,12 @@ impl OpenCvCaptureDriver {
         };
 
         for backend in backends {
-            let capture = VideoCapture::new(0, *backend)
-                .map_err(|error| VisioFlowError::Capture(format!("failed to open camera: {error}")))?;
-            if capture
-                .is_opened()
-                .map_err(|error| VisioFlowError::Capture(format!("opencv is_opened failed: {error}")))?
-            {
+            let capture = VideoCapture::new(0, *backend).map_err(|error| {
+                VisioFlowError::Capture(format!("failed to open camera: {error}"))
+            })?;
+            if capture.is_opened().map_err(|error| {
+                VisioFlowError::Capture(format!("opencv is_opened failed: {error}"))
+            })? {
                 return Ok(Self { capture });
             }
         }
@@ -188,9 +189,9 @@ impl CaptureDriver for OpenCvCaptureDriver {
 
     fn set_property(&mut self, property: i32, value: f64) -> Result<bool> {
         use opencv::prelude::VideoCaptureTrait;
-        self.capture
-            .set(property, value)
-            .map_err(|error| VisioFlowError::Capture(format!("opencv set property failed: {error}")))
+        self.capture.set(property, value).map_err(|error| {
+            VisioFlowError::Capture(format!("opencv set property failed: {error}"))
+        })
     }
 }
 

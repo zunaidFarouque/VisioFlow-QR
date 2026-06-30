@@ -73,8 +73,8 @@ pub fn preview_dimensions_from_screen(
     preview_width = preview_width.max(1).min(screen_width);
 
     if preview_width == screen_width {
-        preview_height = ((preview_width as f64 * capture_height as f64) / capture_width as f64)
-            .round() as u32;
+        preview_height =
+            ((preview_width as f64 * capture_height as f64) / capture_width as f64).round() as u32;
         preview_height = preview_height.max(1).min(screen_height);
     }
 
@@ -134,9 +134,7 @@ pub fn rgb_to_preview_buffer_into(rgb: &[u8], width: u32, height: u32, out: &mut
     out.reserve(pixel_count);
 
     for chunk in rgb.chunks_exact(3).take(pixel_count) {
-        out.push(
-            (u32::from(chunk[0]) << 16) | (u32::from(chunk[1]) << 8) | u32::from(chunk[2]),
-        );
+        out.push((u32::from(chunk[0]) << 16) | (u32::from(chunk[1]) << 8) | u32::from(chunk[2]));
     }
 
     out.resize(pixel_count, 0);
@@ -181,10 +179,7 @@ mod tests {
     fn should_attempt_decode_after_interval_elapses() {
         let interval = decode_interval_from_ms(DEFAULT_DECODE_INTERVAL_MS);
         assert!(should_attempt_decode(interval, interval));
-        assert!(!should_attempt_decode(
-            Duration::from_millis(50),
-            interval
-        ));
+        assert!(!should_attempt_decode(Duration::from_millis(50), interval));
     }
 
     #[test]

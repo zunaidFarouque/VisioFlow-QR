@@ -8,7 +8,16 @@ fn store_path(dir: &tempfile::TempDir) -> String {
 }
 
 const STOCK_RULE_NAMES: &[&str] = &[
-    "wifi", "url", "mailto", "tel", "geo", "vcard", "event", "clipboard", "asset", "plain",
+    "wifi",
+    "url",
+    "mailto",
+    "tel",
+    "geo",
+    "vcard",
+    "event",
+    "clipboard",
+    "asset",
+    "plain",
 ];
 
 #[test]
@@ -50,13 +59,7 @@ fn rule_init_defaults_merge_preserves_existing_rules() {
     Command::cargo_bin("visioflow")
         .expect("visioflow binary")
         .args([
-            "rule",
-            "--store",
-            &store,
-            "config",
-            "url",
-            "--regex",
-            "^custom$",
+            "rule", "--store", &store, "config", "url", "--regex", "^custom$",
         ])
         .assert()
         .success();
@@ -69,7 +72,10 @@ fn rule_init_defaults_merge_preserves_existing_rules() {
 
     let contents = std::fs::read_to_string(dir.path().join("rules.json")).expect("read store");
     let rules: BTreeMap<String, Rule> = serde_json::from_str(&contents).expect("parse rules");
-    assert_eq!(rules.get("url").and_then(|r| r.regex.as_deref()), Some("^custom$"));
+    assert_eq!(
+        rules.get("url").and_then(|r| r.regex.as_deref()),
+        Some("^custom$")
+    );
     assert!(rules.contains_key("wifi"));
 }
 

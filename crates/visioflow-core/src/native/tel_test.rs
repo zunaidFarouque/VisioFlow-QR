@@ -25,7 +25,10 @@ fn parses_tel_case_insensitive_prefix() {
 
     let vars = parser.parse("TEL:8005551212");
 
-    assert_eq!(vars.get("QR_NATIVE_TEL_NUMBER").map(String::as_str), Some("8005551212"));
+    assert_eq!(
+        vars.get("QR_NATIVE_TEL_NUMBER").map(String::as_str),
+        Some("8005551212")
+    );
 }
 
 #[test]

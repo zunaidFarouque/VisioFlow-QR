@@ -14,10 +14,7 @@ impl NativeParser for GeoParser {
 
 fn parse_geo(raw: &str) -> Option<HashMap<String, String>> {
     let rest = strip_geo_prefix(raw)?;
-    let no_query = rest
-        .split_once('?')
-        .map(|(left, _)| left)
-        .unwrap_or(rest);
+    let no_query = rest.split_once('?').map(|(left, _)| left).unwrap_or(rest);
     let coords_only = no_query
         .split_once(';')
         .map(|(left, _)| left)

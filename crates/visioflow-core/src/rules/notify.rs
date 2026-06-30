@@ -12,9 +12,9 @@ pub fn format_routing_message(event: &RoutingEvent) -> String {
             rule,
             auto_route: false,
         } => format!(r#"visioflow: rule "{rule}" applied"#),
-        RoutingEvent::Mismatch { rule } => format!(
-            r#"visioflow: rule "{rule}" did not match; copied payload to clipboard"#
-        ),
+        RoutingEvent::Mismatch { rule } => {
+            format!(r#"visioflow: rule "{rule}" did not match; copied payload to clipboard"#)
+        }
         RoutingEvent::NoAutoMatch => {
             "visioflow: no auto rule matched; copied payload to clipboard".to_owned()
         }

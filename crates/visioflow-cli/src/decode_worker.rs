@@ -36,7 +36,9 @@ impl AsyncDecodeWorker {
                     WorkerCommand::Shutdown => break,
                     WorkerCommand::Decode(frame) => {
                         let outcome = match decoder.decode_bgr(&frame) {
-                            Ok(payloads) if !payloads.is_empty() => DecodeOutcome::Success(payloads),
+                            Ok(payloads) if !payloads.is_empty() => {
+                                DecodeOutcome::Success(payloads)
+                            }
                             Ok(_) | Err(VisioFlowError::NoPayloads) => DecodeOutcome::NoPayloads,
                             Err(error) => DecodeOutcome::Failed(error),
                         };

@@ -49,14 +49,8 @@ fn primary_work_area_windows() -> Option<ScreenBounds> {
         right: 0,
         bottom: 0,
     };
-    let ok = unsafe {
-        SystemParametersInfoW(
-            SPI_GETWORKAREA,
-            0,
-            (&mut rect as *mut RECT).cast(),
-            0,
-        )
-    };
+    let ok =
+        unsafe { SystemParametersInfoW(SPI_GETWORKAREA, 0, (&mut rect as *mut RECT).cast(), 0) };
     if ok == 0 {
         return None;
     }
@@ -140,7 +134,10 @@ pub fn anchored_window_position(
     let max_x = bounds.x + bounds.width as i32 - window_width as i32;
     let max_y = bounds.y + bounds.height as i32 - window_height as i32;
 
-    (x.min(max_x).max(bounds.x) as isize, y.min(max_y).max(bounds.y) as isize)
+    (
+        x.min(max_x).max(bounds.x) as isize,
+        y.min(max_y).max(bounds.y) as isize,
+    )
 }
 
 /// Place the preview window at `anchor`, using outer frame dimensions and work-area clamping.
@@ -151,8 +148,8 @@ pub fn apply_anchored_preview_position(
     client_width: u32,
     client_height: u32,
 ) {
-    let (outer_width, outer_height) = window_outer_size(window)
-        .unwrap_or((client_width.max(1), client_height.max(1)));
+    let (outer_width, outer_height) =
+        window_outer_size(window).unwrap_or((client_width.max(1), client_height.max(1)));
     let (x, y) = anchored_window_position(bounds, outer_width, outer_height, anchor);
     window.set_position(x, y);
 }

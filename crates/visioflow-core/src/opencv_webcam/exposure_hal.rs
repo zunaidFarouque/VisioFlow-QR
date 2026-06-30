@@ -29,14 +29,18 @@ impl<D: CaptureDriver + 'static> OpenCvExposureHal<D> {
 
     pub fn enable_auto_exposure(&self) -> Result<()> {
         // OpenCV convention on Windows backends: 0.75 = auto, 0.25 = manual.
-        let _ = self.stream.set_property(cvprop::CAP_PROP_AUTO_EXPOSURE, 0.75)?;
+        let _ = self
+            .stream
+            .set_property(cvprop::CAP_PROP_AUTO_EXPOSURE, 0.75)?;
         Ok(())
     }
 }
 
 impl<D: CaptureDriver + 'static> ExposureHal for OpenCvExposureHal<D> {
     fn disable_auto_exposure(&self) -> Result<()> {
-        let _ = self.stream.set_property(cvprop::CAP_PROP_AUTO_EXPOSURE, 0.25)?;
+        let _ = self
+            .stream
+            .set_property(cvprop::CAP_PROP_AUTO_EXPOSURE, 0.25)?;
         Ok(())
     }
 

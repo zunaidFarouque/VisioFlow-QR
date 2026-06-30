@@ -40,18 +40,9 @@ mod tests {
 
     #[test]
     fn alternating_profile_switches_every_attempt() {
-        assert_eq!(
-            alternating_live_decode_profile(0),
-            LiveDecodeProfile::Full
-        );
-        assert_eq!(
-            alternating_live_decode_profile(1),
-            LiveDecodeProfile::Hd720
-        );
-        assert_eq!(
-            alternating_live_decode_profile(2),
-            LiveDecodeProfile::Full
-        );
+        assert_eq!(alternating_live_decode_profile(0), LiveDecodeProfile::Full);
+        assert_eq!(alternating_live_decode_profile(1), LiveDecodeProfile::Hd720);
+        assert_eq!(alternating_live_decode_profile(2), LiveDecodeProfile::Full);
     }
 
     #[test]

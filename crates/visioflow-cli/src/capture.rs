@@ -7,17 +7,16 @@ pub struct SnipFrameSource;
 
 impl FrameSource for SnipFrameSource {
     fn capture_frame(&self) -> Result<DynamicImage> {
-        let monitors = xcap::Monitor::all().map_err(|e| {
-            VisioFlowError::Capture(format!("failed to enumerate monitors: {e}"))
-        })?;
+        let monitors = xcap::Monitor::all()
+            .map_err(|e| VisioFlowError::Capture(format!("failed to enumerate monitors: {e}")))?;
 
         let monitor = monitors.into_iter().next().ok_or_else(|| {
             VisioFlowError::Capture("no monitors available for screen capture".into())
         })?;
 
-        let rgba = monitor.capture_image().map_err(|e| {
-            VisioFlowError::Capture(format!("screen capture failed: {e}"))
-        })?;
+        let rgba = monitor
+            .capture_image()
+            .map_err(|e| VisioFlowError::Capture(format!("screen capture failed: {e}")))?;
 
         Ok(DynamicImage::ImageRgba8(rgba))
     }

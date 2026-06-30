@@ -9,6 +9,16 @@ cargo test
 cargo clippy -- -D warnings
 ```
 
+## Windows install paths
+
+Preferred order:
+
+1. Scoop portable (`scripts/packaging/scoop/visioflow.json`)
+2. Traditional install (`scripts/install-traditional.ps1`)
+3. Zip/no-install bootstrap (`scripts/bootstrap-portable.ps1`)
+
+Full commands and smoke checks are documented in `DOCs/USER_GUIDE.md`.
+
 ## Usage (MVP)
 
 ```bash

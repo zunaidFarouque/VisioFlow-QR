@@ -20,11 +20,7 @@ fn render_qr_fixture(path: &std::path::Path, payload: &str) {
             if modules[idx] == qrcode::Color::Dark {
                 for dy in 0..scale {
                     for dx in 0..scale {
-                        image.put_pixel(
-                            x as u32 * scale + dx,
-                            y as u32 * scale + dy,
-                            Luma([0u8]),
-                        );
+                        image.put_pixel(x as u32 * scale + dx, y as u32 * scale + dy, Luma([0u8]));
                     }
                 }
             }
@@ -51,9 +47,7 @@ fn capture_engine_decodes_fixture_image() {
     render_qr_fixture(&fixture, "visioflow-mvp-payload");
 
     let source = GrayFixtureSource {
-        image: image::open(&fixture)
-            .expect("open fixture")
-            .to_luma8(),
+        image: image::open(&fixture).expect("open fixture").to_luma8(),
     };
 
     let payloads =
@@ -104,7 +98,9 @@ fn cli_capture_export_bash_emits_qr_raw() {
         ])
         .assert()
         .success()
-        .stdout(predicate::str::contains("export QR_RAW='export-bash-payload'"));
+        .stdout(predicate::str::contains(
+            "export QR_RAW='export-bash-payload'",
+        ));
 }
 
 #[test]
@@ -128,5 +124,7 @@ fn cli_capture_export_ps1_emits_qr_raw() {
         ])
         .assert()
         .success()
-        .stdout(predicate::str::contains("$env:QR_RAW = 'export-ps1-payload'"));
+        .stdout(predicate::str::contains(
+            "$env:QR_RAW = 'export-ps1-payload'",
+        ));
 }

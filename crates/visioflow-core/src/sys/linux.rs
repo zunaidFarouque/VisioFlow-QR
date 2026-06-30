@@ -75,14 +75,7 @@ mod tests {
         let args = nmcli_wifi_connect_args("lab", "secret");
         assert_eq!(
             args,
-            vec![
-                "device",
-                "wifi",
-                "connect",
-                "lab",
-                "password",
-                "secret"
-            ]
+            vec!["device", "wifi", "connect", "lab", "password", "secret"]
         );
     }
 

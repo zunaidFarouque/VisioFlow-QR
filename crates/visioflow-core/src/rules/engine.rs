@@ -23,9 +23,7 @@ pub fn apply_rule(rule: &Rule, payload: &str) -> Result<ResolvedVars> {
     };
 
     let regex = Regex::new(pattern).map_err(|e| RuleError::InvalidRegex(e.to_string()))?;
-    let captures = regex
-        .captures(payload)
-        .ok_or(RuleError::NoMatch)?;
+    let captures = regex.captures(payload).ok_or(RuleError::NoMatch)?;
 
     for name in regex.capture_names().flatten() {
         let Some(value) = captures.name(name).map(|m| m.as_str().to_owned()) else {

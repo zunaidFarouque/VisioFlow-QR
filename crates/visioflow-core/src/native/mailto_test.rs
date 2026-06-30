@@ -32,7 +32,10 @@ fn parses_mailto_address_only() {
 
     let vars = parser.parse(raw);
 
-    assert_eq!(vars, mailto_map(&[("QR_NATIVE_MAIL_TO", "admin@corp.test")]));
+    assert_eq!(
+        vars,
+        mailto_map(&[("QR_NATIVE_MAIL_TO", "admin@corp.test")])
+    );
     assert!(!vars.contains_key("QR_NATIVE_MAIL_SUBJECT"));
 }
 

@@ -8,8 +8,8 @@ use std::thread;
 use std::time::Duration;
 
 use visioflow_core::{
-    default_socket_path, parse_socket_name, ClientMessage, DaemonHandler, FileRuleStore,
-    IpcClient, IpcServer, ServerMessage, SocketIpcClient, SocketIpcServer, VisioFlowError,
+    default_socket_path, parse_socket_name, ClientMessage, DaemonHandler, FileRuleStore, IpcClient,
+    IpcServer, ServerMessage, SocketIpcClient, SocketIpcServer, VisioFlowError,
 };
 
 /// PID file alongside the rules store under the user config directory.
@@ -291,9 +291,9 @@ pub fn route_capture_trigger_via_ipc(
     rule_name: &str,
     payloads: &[String],
 ) -> Result<visioflow_core::ResolvedVars, VisioFlowError> {
-    let payload = payloads.first().ok_or_else(|| {
-        VisioFlowError::Capture("no payloads decoded for trigger".into())
-    })?;
+    let payload = payloads
+        .first()
+        .ok_or_else(|| VisioFlowError::Capture("no payloads decoded for trigger".into()))?;
     rule_execute_via_ipc(socket, rule_name, payload)
 }
 

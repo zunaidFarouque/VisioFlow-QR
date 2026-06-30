@@ -18,11 +18,7 @@ fn render_qr_fixture(path: &std::path::Path, payload: &str) {
             if modules[idx] == qrcode::Color::Dark {
                 for dy in 0..scale {
                     for dx in 0..scale {
-                        image.put_pixel(
-                            x as u32 * scale + dx,
-                            y as u32 * scale + dy,
-                            Luma([0u8]),
-                        );
+                        image.put_pixel(x as u32 * scale + dx, y as u32 * scale + dy, Luma([0u8]));
                     }
                 }
             }
@@ -61,8 +57,11 @@ fn seed_auto_rules(store: &std::path::Path) {
             .expect("parse rules");
     rules["url"]["auto_compatible"] = serde_json::Value::Bool(true);
     rules["url"]["priority"] = serde_json::json!(10);
-    std::fs::write(rules_path, serde_json::to_string_pretty(&rules).expect("encode"))
-        .expect("write rules");
+    std::fs::write(
+        rules_path,
+        serde_json::to_string_pretty(&rules).expect("encode"),
+    )
+    .expect("write rules");
 
     Command::cargo_bin("visioflow")
         .expect("visioflow binary")
@@ -88,8 +87,11 @@ fn seed_auto_rules(store: &std::path::Path) {
             .expect("parse rules");
     rules["wifi"]["auto_compatible"] = serde_json::Value::Bool(true);
     rules["wifi"]["priority"] = serde_json::json!(5);
-    std::fs::write(rules_path, serde_json::to_string_pretty(&rules).expect("encode"))
-        .expect("write rules");
+    std::fs::write(
+        rules_path,
+        serde_json::to_string_pretty(&rules).expect("encode"),
+    )
+    .expect("write rules");
 
     Command::cargo_bin("visioflow")
         .expect("visioflow binary")
@@ -102,8 +104,11 @@ fn seed_auto_rules(store: &std::path::Path) {
             .expect("parse rules");
     rules["catchall"]["auto_compatible"] = serde_json::Value::Bool(true);
     rules["catchall"]["priority"] = serde_json::json!(999);
-    std::fs::write(rules_path, serde_json::to_string_pretty(&rules).expect("encode"))
-        .expect("write rules");
+    std::fs::write(
+        rules_path,
+        serde_json::to_string_pretty(&rules).expect("encode"),
+    )
+    .expect("write rules");
 }
 
 #[test]
@@ -181,9 +186,9 @@ fn capture_explicit_mismatch_falls_back_to_copy() {
         ])
         .assert()
         .success()
-        .stderr(
-            predicate::str::contains(r#"rule "asset" did not match; copied payload to clipboard"#),
-        )
+        .stderr(predicate::str::contains(
+            r#"rule "asset" did not match; copied payload to clipboard"#,
+        ))
         .stdout(predicate::str::is_empty());
 }
 

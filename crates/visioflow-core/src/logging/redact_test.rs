@@ -45,10 +45,7 @@ fn redact_sensitive_preserves_safe_keys() {
         redact_sensitive("QR_RAW", "WIFI:T:MyNet;P:ignored-in-raw;;"),
         "WIFI:T:MyNet;P:ignored-in-raw;;"
     );
-    assert_eq!(
-        redact_sensitive("QR_NATIVE_WIFI_SSID", "MyNet"),
-        "MyNet"
-    );
+    assert_eq!(redact_sensitive("QR_NATIVE_WIFI_SSID", "MyNet"), "MyNet");
     assert_eq!(redact_sensitive("QR_VAR_ASSET", "42"), "42");
 }
 

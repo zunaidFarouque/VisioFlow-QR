@@ -34,9 +34,7 @@ impl FileRuleStore {
 
     #[must_use]
     pub fn with_default_path() -> Self {
-        Self::new(
-            Self::default_path().unwrap_or_else(|_| PathBuf::from("rules.json")),
-        )
+        Self::new(Self::default_path().unwrap_or_else(|_| PathBuf::from("rules.json")))
     }
 
     #[must_use]
@@ -48,7 +46,8 @@ impl FileRuleStore {
         if !self.path.exists() {
             return Ok(BTreeMap::new());
         }
-        let contents = fs::read_to_string(&self.path).map_err(|e| RuleError::StoreIo(e.to_string()))?;
+        let contents =
+            fs::read_to_string(&self.path).map_err(|e| RuleError::StoreIo(e.to_string()))?;
         if contents.trim().is_empty() {
             return Ok(BTreeMap::new());
         }
@@ -59,8 +58,8 @@ impl FileRuleStore {
         if let Some(parent) = self.path.parent() {
             fs::create_dir_all(parent).map_err(|e| RuleError::StoreIo(e.to_string()))?;
         }
-        let contents =
-            serde_json::to_string_pretty(rules).map_err(|e| RuleError::StoreParse(e.to_string()))?;
+        let contents = serde_json::to_string_pretty(rules)
+            .map_err(|e| RuleError::StoreParse(e.to_string()))?;
         fs::write(&self.path, contents).map_err(|e| RuleError::StoreIo(e.to_string()))
     }
 }

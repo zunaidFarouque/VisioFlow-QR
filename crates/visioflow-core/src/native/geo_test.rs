@@ -31,8 +31,14 @@ fn parses_geo_case_insensitive_prefix() {
 
     let vars = parser.parse("GEO:-33.86,151.21");
 
-    assert_eq!(vars.get("QR_NATIVE_GEO_LAT").map(String::as_str), Some("-33.86"));
-    assert_eq!(vars.get("QR_NATIVE_GEO_LON").map(String::as_str), Some("151.21"));
+    assert_eq!(
+        vars.get("QR_NATIVE_GEO_LAT").map(String::as_str),
+        Some("-33.86")
+    );
+    assert_eq!(
+        vars.get("QR_NATIVE_GEO_LON").map(String::as_str),
+        Some("151.21")
+    );
 }
 
 #[test]

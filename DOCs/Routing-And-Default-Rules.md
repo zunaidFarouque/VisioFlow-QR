@@ -1,6 +1,6 @@
 # VisioFlow: Routing, Default Rules & UX Architecture
 
-> **Status:** **v2 routing implemented** in core + CLI (auto-route, builtins, default rule pack, `init-defaults`, mismatch copy fallback). Daemon IPC still uses **explicit rule names** only on `execute_rule` — see §10. Optional `--notify` desktop toasts remain future work.
+> **Status:** **v2 routing implemented** in core + CLI (auto-route, builtins, default rule pack, `init-defaults`, mismatch copy fallback, and `--notify` desktop toasts on Windows). Daemon IPC `execute_rule` remains explicit-name on the wire; capture auto-route parity is achieved client-side by resolving the matched rule with core `route_payload` then executing that rule via IPC — see §10.
 >
 > **Audience:** AI agents and human implementers. Read with [`ENGINE_RULES.md`](ENGINE_RULES.md), [`Architecture.md`](Architecture.md), [`USER_GUIDE.md`](USER_GUIDE.md).
 
@@ -144,9 +144,9 @@ Decode success + routing failure must still expose `QR_RAW` to fallback copy.
 
 ---
 
-## 7. Notifications and feedback (implemented — stderr)
+## 7. Notifications and feedback (implemented)
 
-When not `--silent`, emit clear stderr lines (desktop toasts behind `--notify` remain future work):
+When not `--silent`, emit clear stderr lines. On Windows, `capture --notify` also emits native toast notifications.
 
 | Event | Example message |
 |-------|-----------------|
@@ -156,6 +156,14 @@ When not `--silent`, emit clear stderr lines (desktop toasts behind `--notify` r
 | Auto no match | `visioflow: no auto rule matched; copied payload to clipboard` |
 | Copy builtin | `visioflow: copy-only mode` |
 | WiFi connect | `visioflow: connecting to WiFi (rule "wifi")` |
+
+`--notify` values:
+
+- `off` — no desktop notification side-channel.
+- `errors-only` (default) — notify on explicit mismatch, no auto match, and WiFi connect failures.
+- `on` — notify on all routed outcomes, including successful matches.
+
+If desktop notifications are unavailable, capture/routing still succeeds; a short stderr note is printed only in `--verbose` mode.
 
 Optional structured line for tooling (`--output json` on capture):
 
@@ -226,8 +234,8 @@ visioflow capture --source snip
 # Auto but never auto-join WiFi
 visioflow capture --source snip --except wifi
 
-# Desktop toast + stderr (when implemented)
-visioflow capture --source snip --notify
+# Desktop toast + stderr
+visioflow capture --source snip --notify on
 ```
 
 ### Explicit rule
@@ -281,7 +289,7 @@ visioflow capture --source snip --interactive --trigger wifi
 | Feature | Behavior with v2 routing |
 |---------|--------------------------|
 | `--export bash\|ps1` | After successful route; vars from matched rule |
-| `--ipc-socket` | Daemon `execute_rule` requires an **explicit rule name** (no auto scan on the wire). CLI `capture` without `--ipc-socket` performs full auto routing locally. |
+| `--ipc-socket` | Daemon `execute_rule` requires an explicit rule name on the wire; CLI `capture` now resolves auto-route locally (same core routing API) and forwards the matched rule to daemon for execution. |
 | `daemon reload` | Reload rules after editing `rules.json` |
 | `rule list` / `rule delete` | Unchanged; manage auto pool membership via `auto_compatible` |
 | Two rule sources | Terminal **and** JSON file — same store (`rules.json`) |
@@ -308,7 +316,7 @@ Rules remain editable via CLI or direct JSON ([`USER_GUIDE.md`](USER_GUIDE.md)).
 | **3** | Fallback copy + stderr events | **Done** — `rules/notify_test.rs`, `capture_routing` mismatch tests |
 | **4** | `assets/default-rules.json`; `rule init-defaults`; `share/actions/*` | **Done** — `tests/rule_init_defaults.rs`, `share.rs` tests |
 | **5** | `smoke-default-rules.ps1` | **Done** — `scripts/smoke-default-rules.ps1` |
-| **Later** | `--notify` desktop toasts; IPC auto-route message | Not started |
+| **Later** | Optional dedicated IPC auto-route message | Not started |
 
 **Do not refactor** webcam/OpenCV unless required. Follow TDD per [`Architecture.md`](Architecture.md).
 

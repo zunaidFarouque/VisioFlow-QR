@@ -31,6 +31,63 @@ Typical uses: asset tags, WiFi provisioning payloads, URI deep-links, and custom
 | **Windows** | [Rust toolchain](https://rustup.rs/) | Above + LLVM + [vcpkg](https://vcpkg.io/) OpenCV (see `scripts/dev-env.ps1`) |
 | **Linux** | Rust toolchain | Above + `libopencv-contrib-dev`, `clang`, WeChat CNN models in `models/` |
 
+### Recommended install methods (Windows-first)
+
+Use one of these three paths depending on how you want to run VisioFlow:
+
+1. **Scoop portable (recommended)**
+2. **Traditional machine-local install**
+3. **Zip/no-install portable**
+
+#### 1) Scoop portable (recommended)
+
+```powershell
+# Add your bucket that contains scripts/packaging/scoop/visioflow.json
+scoop bucket add visioflow-bucket <bucket-url>
+scoop install visioflow
+
+# One-time bootstrap for shortcuts/rules
+powershell -ExecutionPolicy Bypass -File "$env:USERPROFILE\scoop\apps\visioflow\current\bootstrap-portable.ps1" -DistRoot "$env:USERPROFILE\scoop\apps\visioflow\current" -Force
+```
+
+Smoke checks:
+
+```powershell
+visioflow --help
+visioflow rule list
+```
+
+#### 2) Traditional machine-local install
+
+This copies `visioflow.exe` + `share/` to `%LOCALAPPDATA%\Programs\VisioFlow` by default, seeds `%APPDATA%\visioflow\rules.json`, then creates Desktop and Start Menu shortcuts.
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\install-traditional.ps1 -DistRoot .\dist\visioflow-win-x64 -Force
+```
+
+Smoke checks:
+
+```powershell
+& "$env:LOCALAPPDATA\Programs\VisioFlow\visioflow.exe" --help
+powershell -ExecutionPolicy Bypass -File .\scripts\smoke-shortcuts.ps1
+```
+
+#### 3) Zip / no-install portable (no Scoop)
+
+Extract the release zip anywhere (for example `D:\tools\visioflow-win-x64`) and bootstrap once:
+
+```powershell
+cd D:\tools\visioflow-win-x64
+powershell -ExecutionPolicy Bypass -File .\bootstrap-portable.ps1 -DistRoot . -Force
+```
+
+Smoke checks:
+
+```powershell
+.\visioflow.exe --help
+.\visioflow.exe rule list
+```
+
 ### Router-only build (no webcam)
 
 Use this when you only need snip capture, rules, export, and the daemon. No OpenCV or vcpkg required.
@@ -74,6 +131,7 @@ Download WeChat CNN model files into `models/` (see `models/README.md`).
 .\scripts\smoke-router.ps1
 .\scripts\smoke-default-rules.ps1
 .\scripts\smoke-shortcuts.ps1
+.\scripts\smoke-distribution.ps1
 ```
 
 `smoke-router.ps1` runs core/CLI tests, builds with `--no-default-features`, and exercises rule create/config/execute plus `--export bash`.
@@ -81,6 +139,8 @@ Download WeChat CNN model files into `models/` (see `models/README.md`).
 `smoke-default-rules.ps1` seeds stock rules via `rule init-defaults` into a temp store, runs `rule execute url --no-exec`, and checks `rule list`.
 
 `smoke-shortcuts.ps1` validates the Windows shortcut installer in temp directories (launcher `.cmd` files + Desktop/Start Menu `.lnk` files).
+
+`smoke-distribution.ps1` validates distribution artifacts for Scoop/traditional/zip paths, including install bootstrap and expected file layout.
 
 ### Config file locations
 
@@ -261,6 +321,15 @@ visioflow capture --source snip --trigger plain --action stdout
 | `--except <NAME>` | — | Exclude rule(s) from auto scan (repeatable) |
 | `--only <NAME>` | — | Whitelist for auto scan (repeatable) |
 | `--on-mismatch <copy\|none>` | `copy` | After routing failure, copy payload or exit strict |
+| `--notify <off\|on\|errors-only>` | `errors-only` | Native Windows toast notifications for routing outcomes |
+
+`--notify` behavior:
+
+- `errors-only` (default): toast on explicit mismatch, no auto match, and WiFi connect failure.
+- `on`: toast all of the above plus successful rule matches.
+- `off`: no desktop toast.
+
+If the OS notification channel is unavailable, capture continues normally. In `--verbose` mode, VisioFlow prints a one-line stderr diagnostic instead of failing.
 
 **Human-first default:** successful routing runs actions; failures **copy** the payload and print a stderr notice (unless `--silent`). Use `--action stdout` only for scripting — not the default snip experience.
 
@@ -357,7 +426,7 @@ visioflow --ipc-socket /tmp/my-visioflow.sock rule execute asset --payload 'ASSE
 
 ### CLI via daemon
 
-When `--ipc-socket` is set, `rule execute` and `capture --trigger` delegate to the daemon (same semantics as local routing, including native parsers and optional exec). **Auto-routing** (omitting `--trigger`) runs locally in the CLI today — daemon `execute_rule` IPC messages still require an explicit rule name. Reload the daemon after editing `rules.json` on disk:
+When `--ipc-socket` is set, `rule execute` and `capture --trigger` delegate to the daemon (same semantics as local routing, including native parsers and optional exec). For **auto-routing** (omitting `--trigger`), the CLI now resolves the matching rule locally with the same core routing API and then executes that matched rule through daemon IPC. On the wire, `execute_rule` still carries an explicit rule name. Reload the daemon after editing `rules.json` on disk:
 
 ```powershell
 visioflow daemon reload
@@ -567,6 +636,7 @@ Confirms tests, build, rule workflow, `--export bash`, and stock default rules i
 | [`Handoff-Router-Phase.md`](Handoff-Router-Phase.md) | Phase context and implementation status |
 | [`Rust OpenCV QR Scanning Architecture.md`](Rust%20OpenCV%20QR%20Scanning%20Architecture.md) | Webcam / OpenCV pipeline (webcam only) |
 | [`PLATFORM_CI.md`](PLATFORM_CI.md) | Cross-platform CI and IPC conventions |
+| [`Distribution-Windows.md`](Distribution-Windows.md) | Scoop/traditional/zip packaging and publish checklist |
 | [`README.md`](../README.md) | Repo overview and webcam exposure keys |
 
 ---

@@ -73,10 +73,7 @@ fn spawn_daemon_server(
     let join = thread::spawn(move || {
         let handler = Arc::clone(&handler);
         let mut server = SocketIpcServer::bind(&socket_path, move |msg| {
-            handler
-                .lock()
-                .expect("handler lock")
-                .handle(msg, false)
+            handler.lock().expect("handler lock").handle(msg, false)
         })
         .expect("bind");
         ready_tx.send(()).expect("ready");
@@ -120,7 +117,11 @@ fn socket_ipc_roundtrip_ping_and_execute_rule() {
     let result = client.recv_response().expect("recv rule_result");
 
     match result {
-        ServerMessage::RuleResult { id, vars, exit_code } => {
+        ServerMessage::RuleResult {
+            id,
+            vars,
+            exit_code,
+        } => {
             assert_eq!(id, 2);
             assert_eq!(vars.get("QR_RAW").map(String::as_str), Some("ASSET:42"));
             assert_eq!(vars.get("QR_VAR_ASSET").map(String::as_str), Some("42"));

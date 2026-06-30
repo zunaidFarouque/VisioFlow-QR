@@ -53,14 +53,7 @@ fn rule_list_json_outputs_full_rule_objects() {
 
     Command::cargo_bin("visioflow")
         .expect("visioflow binary")
-        .args([
-            "--output",
-            "json",
-            "rule",
-            "--store",
-            &store,
-            "list",
-        ])
+        .args(["--output", "json", "rule", "--store", &store, "list"])
         .assert()
         .success()
         .stdout(predicate::str::contains(r#""name":"asset""#))

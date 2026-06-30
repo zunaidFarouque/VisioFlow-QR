@@ -6,15 +6,15 @@ pub trait SystemExecutor: Send + Sync {
     fn connect_wifi(&self, ssid: &str, password: &str) -> Result<()>;
 }
 
-#[cfg(target_os = "windows")]
-mod windows;
 #[cfg(target_os = "linux")]
 mod linux;
-
 #[cfg(target_os = "windows")]
-pub use windows::PlatformExecutor;
+mod windows;
+
 #[cfg(target_os = "linux")]
 pub use linux::PlatformExecutor;
+#[cfg(target_os = "windows")]
+pub use windows::PlatformExecutor;
 
 /// Returns the platform-specific executor implementation.
 #[must_use]

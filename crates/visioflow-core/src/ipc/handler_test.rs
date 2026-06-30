@@ -64,7 +64,11 @@ fn handler_execute_rule_resolves_vars() {
     );
 
     match response {
-        ServerMessage::RuleResult { id, vars, exit_code } => {
+        ServerMessage::RuleResult {
+            id,
+            vars,
+            exit_code,
+        } => {
             assert_eq!(id, 3);
             assert_eq!(vars.get("QR_RAW").map(String::as_str), Some("ASSET:42"));
             assert_eq!(vars.get("QR_VAR_ASSET").map(String::as_str), Some("42"));
@@ -150,6 +154,7 @@ fn handler_execute_wifi_connect_missing_ssid_returns_error() {
         ServerMessage::Error { id, message } => {
             assert_eq!(id, 8);
             assert!(message.contains("wifi connect failed"));
+            assert!(message.contains("location permission"));
         }
         other => panic!("expected Error, got {other:?}"),
     }
@@ -177,7 +182,11 @@ fn handler_execute_wifi_connect_with_valid_payload_resolves_native_vars() {
     );
 
     match response {
-        ServerMessage::RuleResult { id, vars, exit_code } => {
+        ServerMessage::RuleResult {
+            id,
+            vars,
+            exit_code,
+        } => {
             assert_eq!(id, 9);
             assert_eq!(
                 vars.get("QR_NATIVE_WIFI_SSID").map(String::as_str),

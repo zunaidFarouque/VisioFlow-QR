@@ -4,11 +4,11 @@ use interprocess::local_socket::traits::{Listener, Stream as StreamTrait};
 use interprocess::local_socket::{ListenerOptions, Stream};
 
 use crate::error::{Result, VisioFlowError};
+use crate::ipc::paths::parse_socket_name;
 use crate::ipc::{
     deserialize_client_line, deserialize_server_line, serialize_client_line, serialize_server_line,
     ClientMessage, IpcClient, IpcServer, ServerMessage,
 };
-use crate::ipc::paths::parse_socket_name;
 
 /// Read one newline-terminated line from a byte stream.
 pub fn read_line<R: BufRead>(reader: &mut R) -> Result<String> {
@@ -39,9 +39,8 @@ pub struct SocketIpcClient {
 impl SocketIpcClient {
     pub fn connect(path: &str) -> Result<Self> {
         let name = parse_socket_name(path)?;
-        let stream = StreamTrait::connect(name).map_err(|e| {
-            VisioFlowError::Ipc(format!("connect to {path} failed: {e}"))
-        })?;
+        let stream = StreamTrait::connect(name)
+            .map_err(|e| VisioFlowError::Ipc(format!("connect to {path} failed: {e}")))?;
         Ok(Self {
             stream,
             read_buf: String::new(),

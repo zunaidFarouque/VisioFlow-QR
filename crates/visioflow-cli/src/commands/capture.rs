@@ -1,16 +1,21 @@
 use clap::ValueEnum;
+use std::collections::HashSet;
+use std::result::Result as StdResult;
 use visioflow_core::capture::CaptureEngine;
 use visioflow_core::decode::RqrrDecoder;
 use visioflow_core::error::Result;
 use visioflow_core::traits::{FrameSource, OpticalFilterKind};
 use visioflow_core::{
-    merge_native_vars, resolve_payload_fully, FileRuleStore, ResolvedVars, RoutedPayload,
-    RuleEngine, RuleError, RuleResult, RuleStore,
+    FileRuleStore, RouteMode, RoutedPayload, RoutingEvent, RuleEngine, RuleError, RuleResult,
+    RuleStore,
 };
 
 use crate::capture::{FileFrameSource, SnipFrameSource};
+use crate::notifications::{send_native_notification, NativeNotification};
 #[cfg(feature = "opencv-webcam")]
-use crate::webcam_session::{capture_webcam_with_preview, WebcamTiming, DEFAULT_WEBCAM_TIMEOUT_SECS};
+use crate::webcam_session::{
+    capture_webcam_with_preview, WebcamTiming, DEFAULT_WEBCAM_TIMEOUT_SECS,
+};
 
 pub use crate::commands::exec::spawn_rule_actions;
 
@@ -75,6 +80,14 @@ pub enum WifiHandoffMode {
     Print,
 }
 
+#[derive(Debug, Clone, Copy, ValueEnum, Default, PartialEq, Eq)]
+pub enum CaptureNotify {
+    Off,
+    On,
+    #[default]
+    ErrorsOnly,
+}
+
 #[derive(Debug, Clone)]
 pub struct CaptureArgs {
     pub source: CaptureSource,
@@ -97,6 +110,7 @@ pub struct CaptureArgs {
     pub rule_store: Option<std::path::PathBuf>,
     pub select: bool,
     pub interactive: bool,
+    pub notify: bool,
 }
 
 impl CaptureArgs {
@@ -159,7 +173,11 @@ pub fn run_capture(args: CaptureArgs) -> Result<Vec<String>> {
     }
 }
 
-pub fn write_capture_output(payloads: &[String], action: CaptureAction, silent: bool) -> Result<()> {
+pub fn write_capture_output(
+    payloads: &[String],
+    action: CaptureAction,
+    silent: bool,
+) -> Result<()> {
     match action {
         CaptureAction::Stdout => {
             if !silent {
@@ -199,15 +217,13 @@ pub fn select_payload_if_needed<R: std::io::BufRead, W: std::io::Write>(
     for (index, payload) in payloads.iter().enumerate() {
         writeln!(prompt, "  [{}] {}", index + 1, payload)?;
     }
-    write!(
-        prompt,
-        "Enter number (1-{}): ",
-        payloads.len()
-    )?;
+    write!(prompt, "Enter number (1-{}): ", payloads.len())?;
     prompt.flush()?;
 
     let mut line = String::new();
-    stdin.read_line(&mut line).map_err(visioflow_core::VisioFlowError::Io)?;
+    stdin
+        .read_line(&mut line)
+        .map_err(visioflow_core::VisioFlowError::Io)?;
 
     let choice = line.trim();
     let index = choice
@@ -248,7 +264,9 @@ pub fn confirm_capture_interactive<R: std::io::BufRead, W: std::io::Write>(
     prompt.flush()?;
 
     let mut line = String::new();
-    stdin.read_line(&mut line).map_err(visioflow_core::VisioFlowError::Io)?;
+    stdin
+        .read_line(&mut line)
+        .map_err(visioflow_core::VisioFlowError::Io)?;
 
     Ok(matches!(line.trim(), "y" | "Y" | "yes" | "Yes" | "YES"))
 }
@@ -281,8 +299,8 @@ mod halt_tests {
         let mut stdin = Cursor::new(Vec::new());
         let mut prompt = Vec::new();
 
-        let out = select_payload_if_needed(&payloads, true, &mut stdin, &mut prompt)
-            .expect("select");
+        let out =
+            select_payload_if_needed(&payloads, true, &mut stdin, &mut prompt).expect("select");
 
         assert_eq!(out, payloads);
         assert!(prompt.is_empty());
@@ -294,8 +312,8 @@ mod halt_tests {
         let mut stdin = Cursor::new(Vec::new());
         let mut prompt = Vec::new();
 
-        let out = select_payload_if_needed(&payloads, false, &mut stdin, &mut prompt)
-            .expect("select");
+        let out =
+            select_payload_if_needed(&payloads, false, &mut stdin, &mut prompt).expect("select");
 
         assert_eq!(out, payloads);
         assert!(prompt.is_empty());
@@ -307,8 +325,8 @@ mod halt_tests {
         let mut stdin = Cursor::new(b"2\n");
         let mut prompt = Vec::new();
 
-        let out = select_payload_if_needed(&payloads, true, &mut stdin, &mut prompt)
-            .expect("select");
+        let out =
+            select_payload_if_needed(&payloads, true, &mut stdin, &mut prompt).expect("select");
 
         assert_eq!(out, vec!["second".to_owned()]);
         let menu = String::from_utf8(prompt).expect("utf8");
@@ -348,8 +366,8 @@ mod halt_tests {
         let mut stdin = Cursor::new(b"y\n");
         let mut prompt = Vec::new();
 
-        let proceed = confirm_capture_interactive(&payloads, true, &mut stdin, &mut prompt)
-            .expect("confirm");
+        let proceed =
+            confirm_capture_interactive(&payloads, true, &mut stdin, &mut prompt).expect("confirm");
 
         assert!(proceed);
         let text = String::from_utf8(prompt).expect("utf8");
@@ -363,8 +381,8 @@ mod halt_tests {
         let mut stdin = Cursor::new(b"\n");
         let mut prompt = Vec::new();
 
-        let proceed = confirm_capture_interactive(&payloads, true, &mut stdin, &mut prompt)
-            .expect("confirm");
+        let proceed =
+            confirm_capture_interactive(&payloads, true, &mut stdin, &mut prompt).expect("confirm");
 
         assert!(!proceed);
     }
@@ -375,8 +393,8 @@ mod halt_tests {
         let mut stdin = Cursor::new(b"2\nyes\n");
         let mut prompt = Vec::new();
 
-        let out = apply_capture_halts(payloads, true, true, &mut stdin, &mut prompt)
-            .expect("halts");
+        let out =
+            apply_capture_halts(payloads, true, true, &mut stdin, &mut prompt).expect("halts");
 
         assert_eq!(out, vec!["two".to_owned()]);
     }
@@ -403,35 +421,6 @@ pub fn run_capture_with_source<S: FrameSource>(
     engine.run(filter)
 }
 
-const RESERVED_AUTO_EXCLUDE: &[&str] = &["copy", "auto"];
-
-/// How capture should route the decoded payload.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum RouteMode {
-    Auto(AutoRouteOptions),
-    BuiltinCopy,
-    BuiltinPlain,
-    Explicit(String),
-}
-
-/// Filters for auto-routing scan.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub struct AutoRouteOptions {
-    pub except: Vec<String>,
-    pub only: Vec<String>,
-}
-
-/// User-facing routing events for stderr feedback.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum RoutingEvent {
-    AutoMatched { rule: String },
-    ExplicitMatched { rule: String },
-    ExplicitMismatch { rule: String },
-    NoAutoMatch,
-    CopyBuiltin,
-    WifiConnecting { rule: String },
-}
-
 /// Outcome of applying routing after capture halts.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum RoutingApplyResult {
@@ -447,149 +436,39 @@ pub fn route_mode_from_trigger(
     except: &[String],
     only: &[String],
 ) -> RouteMode {
+    let except_set: HashSet<String> = except.iter().cloned().collect();
+    let only_set = (!only.is_empty()).then(|| only.iter().cloned().collect());
     match trigger {
-        None => RouteMode::Auto(AutoRouteOptions {
-            except: except.to_vec(),
-            only: only.to_vec(),
+        None => RouteMode::Auto(visioflow_core::AutoRouteOptions {
+            except: except_set.clone(),
+            only: only_set.clone(),
         }),
         Some("copy") => RouteMode::BuiltinCopy,
         Some("plain") => RouteMode::BuiltinPlain,
-        Some("auto") => RouteMode::Auto(AutoRouteOptions {
-            except: except.to_vec(),
-            only: only.to_vec(),
+        Some("auto") => RouteMode::Auto(visioflow_core::AutoRouteOptions {
+            except: except_set,
+            only: only_set,
         }),
         Some(name) => RouteMode::Explicit(name.to_owned()),
     }
 }
 
-/// Format a routing event for stderr (spec §7).
-#[must_use]
-pub fn format_routing_message(event: &RoutingEvent, fallback_copied: bool) -> String {
+fn format_capture_routing_message(event: &RoutingEvent, fallback_copied: bool) -> String {
+    if fallback_copied {
+        return visioflow_core::format_routing_message(event);
+    }
+
     match event {
-        RoutingEvent::AutoMatched { rule } => format!(r#"visioflow: matched rule "{rule}""#),
-        RoutingEvent::ExplicitMatched { rule } => {
-            format!(r#"visioflow: rule "{rule}" applied"#)
-        }
-        RoutingEvent::ExplicitMismatch { rule } if fallback_copied => format!(
-            r#"visioflow: rule "{rule}" did not match; copied payload to clipboard"#
-        ),
-        RoutingEvent::ExplicitMismatch { rule } => {
+        RoutingEvent::Mismatch { rule } => {
             format!(r#"visioflow: rule "{rule}" did not match"#)
         }
-        RoutingEvent::NoAutoMatch if fallback_copied => {
-            "visioflow: no auto rule matched; copied payload to clipboard".to_owned()
-        }
         RoutingEvent::NoAutoMatch => "visioflow: no auto rule matched".to_owned(),
-        RoutingEvent::CopyBuiltin => "visioflow: copy-only mode".to_owned(),
-        RoutingEvent::WifiConnecting { rule } => {
-            format!(r#"visioflow: connecting to WiFi (rule "{rule}")"#)
-        }
-    }
-}
-
-fn is_reserved_auto_exclude(name: &str) -> bool {
-    RESERVED_AUTO_EXCLUDE.contains(&name)
-}
-
-fn rule_matches_for_auto(rule: &visioflow_core::Rule, payload: &str, candidates: &[visioflow_core::Rule]) -> RuleResult<bool> {
-    if rule.regex.is_some() {
-        return match visioflow_core::apply_rule(rule, payload) {
-            Ok(_) => Ok(true),
-            Err(RuleError::NoMatch) => Ok(false),
-            Err(err) => Err(err),
-        };
-    }
-
-    if rule.wifi_connect {
-        let mut vars = ResolvedVars::new();
-        vars.insert(ResolvedVars::QR_RAW, payload);
-        merge_native_vars(&mut vars, payload);
-        return Ok(
-            vars.get("QR_NATIVE_WIFI_SSID").is_some() || payload.starts_with("WIFI:"),
-        );
-    }
-
-    let max_priority = candidates.iter().map(|r| r.priority).max();
-    Ok(max_priority == Some(rule.priority))
-}
-
-fn auto_route_candidates<S: RuleStore>(
-    store: &S,
-    opts: &AutoRouteOptions,
-) -> RuleResult<Vec<visioflow_core::Rule>> {
-    let only: std::collections::BTreeSet<&str> = opts.only.iter().map(String::as_str).collect();
-    let except: std::collections::BTreeSet<&str> = opts.except.iter().map(String::as_str).collect();
-
-    let mut candidates: Vec<_> = store
-        .load_all()?
-        .into_values()
-        .filter(|rule| rule.auto_compatible)
-        .filter(|rule| !is_reserved_auto_exclude(&rule.name))
-        .filter(|rule| !except.contains(rule.name.as_str()))
-        .filter(|rule| only.is_empty() || only.contains(rule.name.as_str()))
-        .collect();
-
-    candidates.sort_by(|a, b| a.priority.cmp(&b.priority).then_with(|| a.name.cmp(&b.name)));
-    Ok(candidates)
-}
-
-/// Route a payload according to mode. Temporary CLI-local implementation until core merges `route_payload`.
-pub fn route_payload<S: RuleStore>(
-    store: &S,
-    payload: &str,
-    mode: &RouteMode,
-) -> RuleResult<Option<RoutedPayload>> {
-    match mode {
-        RouteMode::BuiltinCopy | RouteMode::BuiltinPlain => Ok(None),
-        RouteMode::Explicit(name) => {
-            let rule = store.get(name)?;
-            if rule_matches_for_auto(&rule, payload, std::slice::from_ref(&rule))? {
-                let vars = resolve_payload_fully(&rule, payload)?;
-                Ok(Some(RoutedPayload { rule, vars }))
-            } else {
-                Ok(None)
-            }
-        }
-        RouteMode::Auto(opts) => {
-            let candidates = auto_route_candidates(store, opts)?;
-            for rule in &candidates {
-                if rule_matches_for_auto(rule, payload, &candidates)? {
-                    let vars = resolve_payload_fully(rule, payload)?;
-                    return Ok(Some(RoutedPayload {
-                        rule: rule.clone(),
-                        vars,
-                    }));
-                }
-            }
-            Ok(None)
-        }
+        _ => visioflow_core::format_routing_message(event),
     }
 }
 
 fn is_catchall_copy_rule(rule: &visioflow_core::Rule) -> bool {
     rule.regex.is_none() && !rule.wifi_connect && rule.exec.is_none()
-}
-
-fn routing_event_for_match(mode: &RouteMode, rule_name: &str) -> RoutingEvent {
-    match mode {
-        RouteMode::Explicit(_) => RoutingEvent::ExplicitMatched {
-            rule: rule_name.to_owned(),
-        },
-        RouteMode::Auto(_) => RoutingEvent::AutoMatched {
-            rule: rule_name.to_owned(),
-        },
-        RouteMode::BuiltinCopy | RouteMode::BuiltinPlain => RoutingEvent::CopyBuiltin,
-    }
-}
-
-fn routing_event_for_miss(mode: &RouteMode) -> RoutingEvent {
-    match mode {
-        RouteMode::Explicit(name) => RoutingEvent::ExplicitMismatch {
-            rule: name.clone(),
-        },
-        RouteMode::Auto(_) => RoutingEvent::NoAutoMatch,
-        RouteMode::BuiltinCopy | RouteMode::BuiltinPlain => RoutingEvent::CopyBuiltin,
-    }
 }
 
 /// Apply routing after `--select` / `--interactive` halts.
@@ -599,6 +478,8 @@ pub fn apply_routing_after_halts(
     mode: RouteMode,
     on_mismatch: OnMismatch,
     wifi_handoff: WifiHandoffMode,
+    notify: CaptureNotify,
+    verbose: bool,
     silent: bool,
 ) -> Result<RoutingApplyResult> {
     let payload = payloads.first().ok_or_else(|| {
@@ -608,11 +489,15 @@ pub fn apply_routing_after_halts(
     match &mode {
         RouteMode::BuiltinCopy => {
             if !silent {
-                eprintln!("{}", format_routing_message(&RoutingEvent::CopyBuiltin, false));
+                eprintln!(
+                    "{}",
+                    format_capture_routing_message(&RoutingEvent::BuiltinCopy, false)
+                );
             }
             write_capture_output(&[payload.clone()], CaptureAction::Copy, true)?;
+            emit_routing_notification(notify, &RoutingEvent::BuiltinCopy, verbose, silent);
             return Ok(RoutingApplyResult::CopiedPayload {
-                event: RoutingEvent::CopyBuiltin,
+                event: RoutingEvent::BuiltinCopy,
             });
         }
         RouteMode::BuiltinPlain => {
@@ -622,66 +507,71 @@ pub fn apply_routing_after_halts(
         _ => {}
     }
 
-    if let Some(mut routed) = route_payload(store, payload, &mode).map_err(map_routing_error)? {
+    let route_result =
+        visioflow_core::route_payload(store, mode.clone(), payload).map_err(map_routing_error)?;
+    if let Some(mut routed) = route_result.routed {
         if routed.vars.get("QR_NATIVE_WIFI_SSID").is_some() {
             let mode_value = match wifi_handoff {
                 WifiHandoffMode::OpenSettings => "open-settings",
                 WifiHandoffMode::Print => "print",
             };
-            routed.vars.insert("VISIOFLOW_WIFI_HANDOFF_MODE", mode_value);
+            routed
+                .vars
+                .insert("VISIOFLOW_WIFI_HANDOFF_MODE", mode_value);
         }
         if routed.rule.wifi_connect && !silent {
             eprintln!(
-                "{}",
-                format_routing_message(
-                    &RoutingEvent::WifiConnecting {
-                        rule: routed.rule.name.clone(),
-                    },
-                    false,
-                )
+                r#"visioflow: connecting to WiFi (rule "{}")"#,
+                routed.rule.name
             );
         }
 
-        spawn_rule_actions(&routed.rule, &routed.vars).map_err(map_routing_error)?;
+        if let Err(err) = spawn_rule_actions(&routed.rule, &routed.vars) {
+            if let Some(note) = wifi_error_notification(&err, &routed.rule.name) {
+                emit_native_notification(notify, note, verbose, silent);
+            }
+            return Err(map_routing_error(err));
+        }
 
         if is_catchall_copy_rule(&routed.rule) {
             if !silent {
                 eprintln!(
                     "{}",
-                    format_routing_message(
-                        &routing_event_for_match(&mode, &routed.rule.name),
-                        false,
-                    )
+                    format_capture_routing_message(&route_result.event, false)
                 );
             }
             write_capture_output(&[payload.clone()], CaptureAction::Copy, true)?;
+            emit_routing_notification(notify, &route_result.event, verbose, silent);
             return Ok(RoutingApplyResult::CopiedPayload {
-                event: routing_event_for_match(&mode, &routed.rule.name),
+                event: route_result.event,
             });
         }
 
         if !silent {
             eprintln!(
                 "{}",
-                format_routing_message(&routing_event_for_match(&mode, &routed.rule.name), false)
+                format_capture_routing_message(&route_result.event, false)
             );
         }
+        emit_routing_notification(notify, &route_result.event, verbose, silent);
         return Ok(RoutingApplyResult::Matched(routed));
     }
 
-    let event = routing_event_for_miss(&mode);
+    let event = route_result.event;
     match on_mismatch {
         OnMismatch::Copy => {
             if !silent {
-                eprintln!("{}", format_routing_message(&event, true));
+                eprintln!("{}", format_capture_routing_message(&event, true));
             }
             write_capture_output(&[payload.clone()], CaptureAction::Copy, true)?;
+            emit_routing_notification(notify, &event, verbose, silent);
             Ok(RoutingApplyResult::CopiedPayload { event })
         }
         OnMismatch::None => {
             if !silent {
-                eprintln!("{}", format_routing_message(&event, false));
+                eprintln!("{}", format_capture_routing_message(&event, false));
             }
+            emit_routing_notification(notify, &event, verbose, silent);
             Err(visioflow_core::VisioFlowError::Capture(
                 "routing failed with --on-mismatch none".into(),
             ))
@@ -689,8 +579,120 @@ pub fn apply_routing_after_halts(
     }
 }
 
+fn emit_routing_notification(
+    mode: CaptureNotify,
+    event: &RoutingEvent,
+    verbose: bool,
+    silent: bool,
+) {
+    if !should_notify_for_event(mode, event) {
+        return;
+    }
+    let note = NativeNotification {
+        title: "VisioFlow Capture".to_owned(),
+        body: routing_notification_body(event),
+    };
+    emit_native_notification(mode, note, verbose, silent);
+}
+
+fn emit_native_notification(
+    mode: CaptureNotify,
+    note: NativeNotification,
+    verbose: bool,
+    silent: bool,
+) {
+    if matches!(mode, CaptureNotify::Off) {
+        return;
+    }
+    emit_native_notification_with(note, verbose, silent, send_native_notification);
+}
+
+fn emit_native_notification_with<F>(
+    note: NativeNotification,
+    verbose: bool,
+    silent: bool,
+    sender: F,
+) where
+    F: Fn(&NativeNotification) -> StdResult<(), String>,
+{
+    if let Err(err) = sender(&note) {
+        if verbose && !silent {
+            eprintln!("visioflow: notification unavailable ({err})");
+        }
+    }
+}
+
+#[must_use]
+pub fn should_notify_for_event(mode: CaptureNotify, event: &RoutingEvent) -> bool {
+    match mode {
+        CaptureNotify::Off => false,
+        CaptureNotify::On => true,
+        CaptureNotify::ErrorsOnly => matches!(
+            event,
+            RoutingEvent::Mismatch { .. } | RoutingEvent::NoAutoMatch
+        ),
+    }
+}
+
+#[must_use]
+pub fn routing_notification_body(event: &RoutingEvent) -> String {
+    match event {
+        RoutingEvent::Matched { rule, .. } => format!(r#"Matched rule "{rule}""#),
+        RoutingEvent::Mismatch { rule } => {
+            format!(r#"Rule "{rule}" did not match; payload copied"#)
+        }
+        RoutingEvent::NoAutoMatch => "No auto rule matched; payload copied".to_owned(),
+        RoutingEvent::BuiltinCopy => "Copied payload to clipboard".to_owned(),
+        RoutingEvent::BuiltinPlain => "Printed payload to stdout".to_owned(),
+    }
+}
+
+#[must_use]
+pub fn wifi_error_notification(err: &RuleError, rule_name: &str) -> Option<NativeNotification> {
+    match err {
+        RuleError::WifiConnectFailed(detail) => Some(NativeNotification {
+            title: "VisioFlow WiFi Handoff Error".to_owned(),
+            body: format!(r#"Rule "{rule_name}" failed: {detail}"#),
+        }),
+        _ => None,
+    }
+}
+
 fn map_routing_error(err: RuleError) -> visioflow_core::VisioFlowError {
-    visioflow_core::VisioFlowError::Capture(err.to_string())
+    let message = match err {
+        RuleError::WifiConnectFailed(detail) => format!(
+            "wifi connect failed: {detail}. Hint: verify location permission is enabled and WiFi control is allowed by your system policy."
+        ),
+        RuleError::ExecFailed(detail) => format!(
+            "exec failed: {detail}. Hint: confirm the action path exists and is allowed by endpoint policy."
+        ),
+        other => other.to_string(),
+    };
+    visioflow_core::VisioFlowError::Capture(message)
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum IpcRoutingDecision {
+    ExecuteMatchedRule { rule_name: String },
+    HandleLocally,
+}
+
+pub fn decide_ipc_routing<S: RuleStore>(
+    store: &S,
+    payload: &str,
+    mode: &RouteMode,
+) -> RuleResult<IpcRoutingDecision> {
+    if !matches!(mode, RouteMode::Auto(_)) {
+        return Ok(IpcRoutingDecision::HandleLocally);
+    }
+
+    let route = visioflow_core::route_payload(store, mode.clone(), payload)?;
+    let Some(routed) = route.routed else {
+        return Ok(IpcRoutingDecision::HandleLocally);
+    };
+    Ok(IpcRoutingDecision::ExecuteMatchedRule {
+        rule_name: routed.rule.name,
+    })
 }
 
 /// Route the first captured payload through a named rule (regex + native parsers).
@@ -699,13 +701,13 @@ pub fn route_capture_trigger(
     rule_name: &str,
     payloads: &[String],
 ) -> RuleResult<RoutedPayload> {
-    let payload = payloads.first().ok_or_else(|| {
-        RuleError::StoreIo("no payloads decoded for trigger".to_owned())
-    })?;
+    let payload = payloads
+        .first()
+        .ok_or_else(|| RuleError::StoreIo("no payloads decoded for trigger".to_owned()))?;
     let engine = RuleEngine::new(store.clone());
-    engine.route_fully(rule_name, payload).map_err(|err| {
-        map_trigger_error(err, payloads, rule_name, store)
-    })
+    engine
+        .route_fully(rule_name, payload)
+        .map_err(|err| map_trigger_error(err, payloads, rule_name, store))
 }
 
 /// Enrich regex mismatch errors with the decoded payload and rule pattern.
@@ -750,25 +752,27 @@ mod routing_tests {
     #[test]
     fn route_mode_omitted_trigger_is_auto() {
         let mode = route_mode_from_trigger(None, &["wifi".to_owned()], &[]);
-        assert_eq!(
-            mode,
-            RouteMode::Auto(AutoRouteOptions {
-                except: vec!["wifi".to_owned()],
-                only: vec![],
-            })
-        );
+        let RouteMode::Auto(opts) = mode else {
+            panic!("expected auto");
+        };
+        assert!(opts.except.contains("wifi"));
+        assert_eq!(opts.only, None);
     }
 
     #[test]
     fn route_mode_copy_is_builtin() {
-        assert_eq!(route_mode_from_trigger(Some("copy"), &[], &[]), RouteMode::BuiltinCopy);
+        assert_eq!(
+            route_mode_from_trigger(Some("copy"), &[], &[]),
+            RouteMode::BuiltinCopy
+        );
     }
 
     #[test]
     fn format_routing_message_auto_matched() {
-        let msg = format_routing_message(
-            &RoutingEvent::AutoMatched {
+        let msg = format_capture_routing_message(
+            &RoutingEvent::Matched {
                 rule: "url".to_owned(),
+                auto_route: true,
             },
             false,
         );
@@ -790,13 +794,13 @@ mod routing_tests {
         plain.priority = 999;
         store.upsert(&plain).expect("upsert");
 
-        let routed = route_payload(
+        let route = visioflow_core::route_payload(
             &store,
+            RouteMode::Auto(visioflow_core::AutoRouteOptions::default()),
             "https://example.com",
-            &RouteMode::Auto(AutoRouteOptions::default()),
         )
-        .expect("route")
-        .expect("matched");
+        .expect("route");
+        let routed = route.routed.expect("matched");
 
         assert_eq!(routed.rule.name, "url");
     }
@@ -816,15 +820,16 @@ mod routing_tests {
         plain.priority = 999;
         store.upsert(&plain).expect("upsert");
 
-        let routed = route_payload(
+        let routed = visioflow_core::route_payload(
             &store,
-            "WIFI:T:WPA;S:lab;P:secret;;",
-            &RouteMode::Auto(AutoRouteOptions {
-                except: vec!["wifi".to_owned()],
-                only: vec![],
+            RouteMode::Auto(visioflow_core::AutoRouteOptions {
+                except: ["wifi".to_owned()].into_iter().collect(),
+                only: None,
             }),
+            "WIFI:T:WPA;S:lab;P:secret;;",
         )
         .expect("route")
+        .routed
         .expect("matched");
 
         assert_eq!(routed.rule.name, "plain");
@@ -843,6 +848,8 @@ mod routing_tests {
             RouteMode::Explicit("asset".to_owned()),
             OnMismatch::Copy,
             WifiHandoffMode::OpenSettings,
+            CaptureNotify::Off,
+            false,
             true,
         )
         .expect("routing");
@@ -862,9 +869,11 @@ mod routing_tests {
         let result = apply_routing_after_halts(
             &store,
             &["WIFI:T:WPA;S:lab;P:secret;;".to_owned()],
-            RouteMode::Auto(AutoRouteOptions::default()),
+            RouteMode::Auto(visioflow_core::AutoRouteOptions::default()),
             OnMismatch::Copy,
             WifiHandoffMode::Print,
+            CaptureNotify::Off,
+            false,
             true,
         )
         .expect("routing");
@@ -876,6 +885,92 @@ mod routing_tests {
             routed.vars.get("VISIOFLOW_WIFI_HANDOFF_MODE"),
             Some("print")
         );
+    }
+
+    #[test]
+    fn canonical_route_mode_uses_core_auto_sets() {
+        let mode = route_mode_from_trigger(
+            None,
+            &["wifi".to_owned(), "wifi".to_owned()],
+            &["url".to_owned()],
+        );
+
+        let visioflow_core::RouteMode::Auto(opts) = mode else {
+            panic!("expected auto");
+        };
+        assert!(opts.except.contains("wifi"));
+        assert_eq!(opts.except.len(), 1);
+        assert_eq!(
+            opts.only.as_ref().map(|only| only.contains("url")),
+            Some(true)
+        );
+    }
+
+    #[test]
+    fn ipc_routing_decision_auto_route_chooses_matched_rule() {
+        let (_dir, store) = temp_store();
+        let mut url = Rule::new("url");
+        url.auto_compatible = true;
+        url.priority = 10;
+        url.regex = Some(r"^https?://\S+$".to_owned());
+        store.upsert(&url).expect("upsert");
+
+        let mode = route_mode_from_trigger(None, &[], &[]);
+        let decision = decide_ipc_routing(&store, "https://example.com", &mode).expect("decision");
+
+        assert_eq!(
+            decision,
+            IpcRoutingDecision::ExecuteMatchedRule {
+                rule_name: "url".to_owned(),
+            }
+        );
+    }
+
+    #[test]
+    fn map_routing_error_adds_actionable_wifi_hint() {
+        let err = map_routing_error(RuleError::WifiConnectFailed("missing ssid".to_owned()));
+        let text = err.to_string();
+        assert!(text.contains("location permission"));
+        assert!(text.contains("system policy"));
+    }
+
+    #[test]
+    fn notify_errors_only_skips_successful_match() {
+        let should_notify = should_notify_for_event(
+            CaptureNotify::ErrorsOnly,
+            &RoutingEvent::Matched {
+                rule: "url".to_owned(),
+                auto_route: true,
+            },
+        );
+        assert!(!should_notify);
+    }
+
+    #[test]
+    fn notify_errors_only_includes_no_auto_match() {
+        let should_notify =
+            should_notify_for_event(CaptureNotify::ErrorsOnly, &RoutingEvent::NoAutoMatch);
+        assert!(should_notify);
+    }
+
+    #[test]
+    fn routing_notification_text_for_mismatch_uses_reason() {
+        let text = routing_notification_body(&RoutingEvent::Mismatch {
+            rule: "asset".to_owned(),
+        });
+        assert!(text.contains("did not match"));
+    }
+
+    #[test]
+    fn wifi_connect_failure_maps_to_notification() {
+        let maybe = wifi_error_notification(
+            &RuleError::WifiConnectFailed("access denied".to_owned()),
+            "wifi",
+        );
+        assert!(maybe.is_some());
+        let note = maybe.expect("notification");
+        assert!(note.title.contains("WiFi"));
+        assert!(note.body.contains("access denied"));
     }
 }
 
@@ -902,8 +997,9 @@ mod trigger_tests {
         rule.regex = Some(r"ASSET:(?P<asset>\d+)".to_owned());
         store.upsert(&rule).expect("upsert");
 
-        let routed = route_capture_trigger(&store, "asset", &["ASSET:7".to_owned(), "skip".to_owned()])
-            .expect("route");
+        let routed =
+            route_capture_trigger(&store, "asset", &["ASSET:7".to_owned(), "skip".to_owned()])
+                .expect("route");
 
         assert_eq!(routed.vars.get("QR_VAR_ASSET"), Some("7"));
     }
