@@ -30,9 +30,11 @@ scoop install Zuanid-Scoop/visioflow
 
 Webcam works out of the box: release zips bundle `models/` beside `visioflow.exe`. Scoop sets `VISIOFLOW_MODELS_DIR` to `$dir\models`.
 
+**Start Menu:** four shortcuts under **Scoop Apps → VisioFlow** (no desktop shortcuts): Camera/Snip × auto/copy.
+
 ### 2. Traditional machine-local install
 
-Copies binaries and `share/` to `%LOCALAPPDATA%\Programs\VisioFlow`, seeds `%APPDATA%\visioflow\rules.json`, creates Desktop and Start Menu shortcuts.
+Copies binaries and `share/` to `%LOCALAPPDATA%\Programs\VisioFlow`, seeds `%APPDATA%\visioflow\rules.json`, and creates **Start Menu** shortcuts under `Programs\VisioFlow` (no desktop shortcuts).
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\scripts\install-traditional.ps1 -DistRoot .\dist\visioflow-win-x64 -Force
@@ -121,7 +123,9 @@ Preview is **mirrored by default** (selfie-style). Use `--no-mirror` for raw cam
 
 ## Shortcuts (Windows)
 
-Generate double-click launchers and Desktop / Start Menu shortcuts:
+**Scoop:** Start Menu shortcuts are created automatically under **Scoop Apps → VisioFlow** (four entries — no desktop shortcuts).
+
+**Traditional / portable / dev:** run `install-shortcuts.ps1` to create Start Menu shortcuts and `.cmd` launchers:
 
 ```powershell
 .\scripts\install-shortcuts.ps1
@@ -131,11 +135,14 @@ Creates under `%APPDATA%\VisioFlow\launchers\`:
 
 | Launcher | Command |
 |----------|---------|
-| `scan-auto.cmd` | `capture --source snip` (auto-route) |
-| `scan-copy.cmd` | `capture --source snip --trigger copy` |
-| `scan-plain.cmd` | `capture --source snip --trigger plain --action stdout` |
+| `camera-auto.cmd` | `capture --source webcam` (auto-route) |
+| `camera-copy.cmd` | `capture --source webcam --trigger copy` |
+| `snip-auto.cmd` | `capture --source snip` (auto-route) |
+| `snip-copy.cmd` | `capture --source snip --trigger copy` |
 
-Bind hotkeys in AutoHotkey or PowerToys to these `.cmd` files.
+Start Menu shortcuts live in `%APPDATA%\Microsoft\Windows\Start Menu\Programs\VisioFlow\`.
+
+Bind hotkeys in AutoHotkey or PowerToys to the `.cmd` launchers.
 
 ```powershell
 .\scripts\install-shortcuts.ps1 -BinPath .\target\release\visioflow.exe -Force

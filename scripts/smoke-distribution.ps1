@@ -39,7 +39,8 @@ if (-not $scoopUrl -and $manifest.architecture) {
 }
 Assert-True $scoopUrl "scoop manifest: url missing"
 Assert-True ($manifest.bin) "scoop manifest: bin missing"
-Assert-Contains $manifestRaw "install-shortcuts.ps1" "scoop manifest"
+Assert-Contains $manifestRaw "shortcuts" "scoop manifest"
+Assert-Contains $manifestRaw "VisioFlow QR Camera (auto)" "scoop manifest"
 Assert-Contains $manifestRaw "uninstaller" "scoop manifest"
 
 $tmp = Join-Path $env:TEMP "visioflow-dist-smoke-$(Get-Random)"
@@ -114,12 +115,21 @@ try {
         -AppDataDir $appData `
         -Force
 
-    foreach ($name in @("scan-auto", "scan-copy", "scan-plain")) {
+    foreach ($name in @("camera-auto", "camera-copy", "snip-auto", "snip-copy")) {
         Assert-True (Test-Path (Join-Path $appData "VisioFlow\launchers\$name.cmd")) "portable bootstrap missing launcher $name.cmd"
+    }
+
+    $startMenuFolder = Join-Path $programs "VisioFlow"
+    foreach ($shortcut in @(
+        "VisioFlow QR Camera (auto).lnk",
+        "VisioFlow QR Snip (copy).lnk"
+    )) {
+        Assert-True (-not (Test-Path (Join-Path $desktop $shortcut))) "desktop shortcut should not exist: $shortcut"
+        Assert-True (Test-Path (Join-Path $startMenuFolder $shortcut)) "missing start menu shortcut: $shortcut"
     }
     Assert-True (Test-Path (Join-Path $appData "visioflow\rules.json")) "portable bootstrap missing rules store"
 
-    & ".\scripts\test-scoop-manifest.ps1"
+    & (Join-Path $PSScriptRoot "test-scoop-manifest.ps1")
 
     Write-Host "All distribution smoke checks passed."
 }

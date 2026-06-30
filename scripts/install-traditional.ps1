@@ -79,15 +79,15 @@ if (-not (Test-Path $installScript)) {
 $appDataRoot = if ($AppDataDir) { $AppDataDir } else { $env:APPDATA }
 $launcherRoot = Join-Path $appDataRoot "VisioFlow\launchers"
 $rulesStore = Join-Path $appDataRoot "visioflow\rules.json"
-$desktop = if ($DesktopDir) { $DesktopDir } else { [Environment]::GetFolderPath("Desktop") }
 $programs = if ($StartMenuProgramsDir) { $StartMenuProgramsDir } else { [Environment]::GetFolderPath("Programs") }
+$legacyDesktop = if ($DesktopDir) { $DesktopDir } else { [Environment]::GetFolderPath("Desktop") }
 
 Ensure-DefaultRulesStore -DefaultRulesPath (Join-Path $resolvedInstall "share\default-rules.json") -RulesStorePath $rulesStore -Overwrite:$Force
 
 & $installScript `
     -BinPath (Join-Path $resolvedInstall "visioflow.exe") `
     -LauncherRoot $launcherRoot `
-    -DesktopDir $desktop `
+    -DesktopDir $legacyDesktop `
     -StartMenuProgramsDir $programs `
     -Force:$Force
 

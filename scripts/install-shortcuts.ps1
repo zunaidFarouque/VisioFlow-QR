@@ -1,4 +1,4 @@
-# Installs Windows launchers + shortcuts for common VisioFlow capture entrypoints.
+# Installs Windows launchers + Start Menu shortcuts for VisioFlow capture entrypoints.
 # Usage:
 #   .\scripts\install-shortcuts.ps1
 #   .\scripts\install-shortcuts.ps1 -BinPath "target\release\visioflow.exe"
@@ -6,8 +6,6 @@
 
 param(
     [string]$BinPath,
-    [ValidateSet("snip", "webcam")]
-    [string]$Source = "snip",
     [string]$LauncherRoot,
     [string]$DesktopDir,
     [string]$StartMenuProgramsDir,
@@ -70,6 +68,29 @@ function New-Shortcut {
     $shortcut.Save()
 }
 
+function Remove-LegacyShortcuts {
+    param(
+        [string]$Desktop,
+        [string]$StartMenuFolder
+    )
+
+    $legacyNames = @(
+        "VisioFlow Scan (Auto)",
+        "VisioFlow Scan (Copy)",
+        "VisioFlow Scan (Plain)"
+    )
+    foreach ($name in $legacyNames) {
+        Remove-Item (Join-Path $Desktop "$name.lnk") -Force -ErrorAction SilentlyContinue
+        Remove-Item (Join-Path $StartMenuFolder "$name.lnk") -Force -ErrorAction SilentlyContinue
+    }
+
+    $legacyLaunchers = @("scan-auto.cmd", "scan-copy.cmd", "scan-plain.cmd")
+    $launcherRoot = Join-Path $env:APPDATA "VisioFlow\launchers"
+    foreach ($file in $legacyLaunchers) {
+        Remove-Item (Join-Path $launcherRoot $file) -Force -ErrorAction SilentlyContinue
+    }
+}
+
 $bin = Resolve-BinPath -Requested $BinPath
 
 $launcherRoot = if ($LauncherRoot) { $LauncherRoot } else { Join-Path $env:APPDATA "VisioFlow\launchers" }
@@ -80,24 +101,34 @@ $startMenuFolder = Join-Path $startMenuPrograms "VisioFlow"
 New-Item -ItemType Directory -Path $launcherRoot -Force | Out-Null
 New-Item -ItemType Directory -Path $startMenuFolder -Force | Out-Null
 
+if ($Force) {
+    Remove-LegacyShortcuts -Desktop $desktop -StartMenuFolder $startMenuFolder
+}
+
 $wrappers = @(
     @{
-        Name = "scan-auto"
-        Args = "capture --source $Source"
-        ShortcutName = "VisioFlow Scan (Auto)"
-        Description = "Scan QR via $Source and auto-route with default rules"
+        Name = "camera-auto"
+        Args = "capture --source webcam"
+        ShortcutName = "VisioFlow QR Camera (auto)"
+        Description = "Scan QR via webcam and auto-route with default rules"
     },
     @{
-        Name = "scan-copy"
-        Args = "capture --source $Source --trigger copy"
-        ShortcutName = "VisioFlow Scan (Copy)"
-        Description = "Scan QR via $Source and copy payload only"
+        Name = "camera-copy"
+        Args = "capture --source webcam --trigger copy"
+        ShortcutName = "VisioFlow QR Camera (copy)"
+        Description = "Scan QR via webcam and copy payload only"
     },
     @{
-        Name = "scan-plain"
-        Args = "capture --source $Source --trigger plain --action stdout"
-        ShortcutName = "VisioFlow Scan (Plain)"
-        Description = "Scan QR via $Source and print payload to stdout"
+        Name = "snip-auto"
+        Args = "capture --source snip"
+        ShortcutName = "VisioFlow QR Snip (auto)"
+        Description = "Scan QR via screen snip and auto-route with default rules"
+    },
+    @{
+        Name = "snip-copy"
+        Args = "capture --source snip --trigger copy"
+        ShortcutName = "VisioFlow QR Snip (copy)"
+        Description = "Scan QR via screen snip and copy payload only"
     }
 )
 
@@ -108,17 +139,15 @@ foreach ($entry in $wrappers) {
     }
     Write-Wrapper -Path $wrapperPath -Bin $bin -LaunchArgs $entry.Args
 
-    $desktopShortcut = Join-Path $desktop "$($entry.ShortcutName).lnk"
     $menuShortcut = Join-Path $startMenuFolder "$($entry.ShortcutName).lnk"
 
-    if (((Test-Path $desktopShortcut) -or (Test-Path $menuShortcut)) -and -not $Force) {
+    if ((Test-Path $menuShortcut) -and -not $Force) {
         throw "Shortcut exists for '$($entry.ShortcutName)' (rerun with -Force to overwrite)"
     }
 
-    New-Shortcut -Path $desktopShortcut -TargetPath $wrapperPath -Description $entry.Description
     New-Shortcut -Path $menuShortcut -TargetPath $wrapperPath -Description $entry.Description
 }
 
 Write-Host "Installed VisioFlow launchers in: $launcherRoot"
-Write-Host "Installed shortcuts on Desktop and Start Menu\Programs\VisioFlow"
+Write-Host "Installed shortcuts in Start Menu\Programs\VisioFlow (no desktop shortcuts)"
 Write-Host "Tip: map hotkeys in AHK/PowerToys to the .cmd launchers."

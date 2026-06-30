@@ -17,20 +17,22 @@ Windows-first install guide. For Linux router-only usage, build with `--no-defau
 
 Bucket: [Zunaid-Scoop-Bucket](https://github.com/zunaidFarouque/Zunaid-Scoop-Bucket). Manifest source in app repo: `scripts/packaging/scoop/visioflow.json`.
 
-`scoop install` runs bootstrap automatically — shortcuts, rules seed, and sync to `%APPDATA%\visioflow\rules.json`. The release zip includes **`models/`** beside `visioflow.exe` for webcam (no extra download). Scoop sets `VISIOFLOW_MODELS_DIR` to `$dir\models`.
+`scoop install` runs bootstrap automatically — rules seed and sync to `%APPDATA%\visioflow\rules.json`. The release zip includes **`models/`** beside `visioflow.exe` for webcam (no extra download). Scoop sets `VISIOFLOW_MODELS_DIR` to `$dir\models`.
+
+**Start Menu:** four shortcuts under **Scoop Apps → VisioFlow** (Camera/Snip × auto/copy; no desktop shortcuts).
 
 ```powershell
 scoop bucket add Zuanid-Scoop https://github.com/zunaidFarouque/Zunaid-Scoop-Bucket
 scoop install Zuanid-Scoop/visioflow
 ```
 
-**Uninstall:** removes Desktop/Start Menu shortcuts and `%APPDATA%\VisioFlow\launchers`. Rules stay in Scoop persist unless you run `scoop uninstall -p visioflow`. The `visioflow:` toast protocol registry in HKCU is left in place (refreshed on the next `visioflow notify test`).
+**Uninstall:** Scoop removes manifest shortcuts automatically. Legacy launchers under `%APPDATA%\VisioFlow\launchers` are cleaned by the custom uninstaller. Rules stay in Scoop persist unless you run `scoop uninstall -p visioflow`. The `visioflow:` toast protocol registry in HKCU is left in place (refreshed on the next `visioflow notify test`).
 
 ---
 
 ## Option 2: Traditional machine-local install
 
-Copies binaries and `share/` to `%LOCALAPPDATA%\Programs\VisioFlow`, seeds `%APPDATA%\visioflow\rules.json`, and creates Desktop and Start Menu shortcuts.
+Copies binaries and `share/` to `%LOCALAPPDATA%\Programs\VisioFlow`, seeds `%APPDATA%\visioflow\rules.json`, and creates **Start Menu** shortcuts under `Programs\VisioFlow` (no desktop shortcuts).
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\scripts\install-traditional.ps1 -DistRoot .\dist\visioflow-win-x64 -Force
@@ -47,7 +49,7 @@ cd D:\tools\visioflow-win-x64
 powershell -ExecutionPolicy Bypass -File .\bootstrap-portable.ps1 -DistRoot . -Force
 ```
 
-**Official release:** [v0.1.2 — visioflow-win-x64.zip](https://github.com/zunaidFarouque/VisioFlow-QR/releases/download/v0.1.2/visioflow-win-x64.zip)
+**Official release:** [v0.1.3 — visioflow-win-x64.zip](https://github.com/zunaidFarouque/VisioFlow-QR/releases/download/v0.1.3/visioflow-win-x64.zip)
 
 See [[Distribution-and-Release]] for building and publishing release zips.
 

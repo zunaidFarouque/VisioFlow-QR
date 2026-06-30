@@ -21,7 +21,7 @@ Release zip root (`visioflow-win-x64/`) contains:
 | `visioflow.exe` | Main CLI (webcam when built with default features) |
 | `visioflow-toast.exe` | Toast activation helper for notification Copy button |
 | `default-rules.json` | Stock rule pack |
-| `install-shortcuts.ps1` | Desktop / Start Menu shortcuts |
+| `install-shortcuts.ps1` | Start Menu shortcuts + `.cmd` launchers (traditional/portable) |
 | `bootstrap-portable.ps1` | Portable install bootstrap |
 | `install-traditional.ps1` | Machine-local install script |
 | `share/actions/*.ps1` | Platform action scripts |
@@ -59,7 +59,7 @@ cargo build --release -p visioflow-cli
 ## Publish checklist
 
 1. Run `.\scripts\build-release.ps1` and note the printed SHA256.
-2. Upload `dist/visioflow-win-x64.zip` to a GitHub release tag (e.g. [v0.1.2](https://github.com/zunaidFarouque/VisioFlow-QR/releases/tag/v0.1.2)).
+2. Upload `dist/visioflow-win-x64.zip` to a GitHub release tag (e.g. [v0.1.3](https://github.com/zunaidFarouque/VisioFlow-QR/releases/tag/v0.1.3)).
 3. Update `scripts/packaging/scoop/visioflow.json`:
    - `version`
    - `architecture.64bit.url` (release download URL)
@@ -68,12 +68,12 @@ cargo build --release -p visioflow-cli
 
 Scoop manifest path: `scripts/packaging/scoop/visioflow.json`
 
-`post_install` runs bootstrap automatically (rules + shortcuts). `uninstaller` removes shortcuts/launchers; rules persist unless `scoop uninstall -p`.
+`post_install` seeds rules; Start Menu shortcuts come from manifest `shortcuts` (Scoop Apps → VisioFlow). `uninstaller` cleans legacy launchers; rules persist unless `scoop uninstall -p`.
 
 Current release URL:
 
 ```
-https://github.com/zunaidFarouque/VisioFlow-QR/releases/download/v0.1.2/visioflow-win-x64.zip
+https://github.com/zunaidFarouque/VisioFlow-QR/releases/download/v0.1.3/visioflow-win-x64.zip
 ```
 
 ---
@@ -95,11 +95,15 @@ If all pass, the distribution and install scripts are in a releasable state.
 
 ```json
 {
-  "version": "0.1.2",
+  "version": "0.1.3",
+  "shortcuts": [
+    ["visioflow.exe", "VisioFlow\\\\VisioFlow QR Camera (auto)", "capture --source webcam"],
+    ["visioflow.exe", "VisioFlow\\\\VisioFlow QR Snip (copy)", "capture --source snip --trigger copy"]
+  ],
   "architecture": {
     "64bit": {
-      "url": "https://github.com/zunaidFarouque/VisioFlow-QR/releases/download/v0.1.2/visioflow-win-x64.zip",
-      "hash": "sha256:89ea66f24f4a61409d650629bf0070aa15f48c0314e65f9b56396191af6788b7",
+      "url": "https://github.com/zunaidFarouque/VisioFlow-QR/releases/download/v0.1.3/visioflow-win-x64.zip",
+      "hash": "sha256:<hash from build-release.ps1>",
       "extract_dir": "visioflow-win-x64"
     }
   }

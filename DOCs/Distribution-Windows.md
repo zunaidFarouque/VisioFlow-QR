@@ -47,7 +47,7 @@ cargo build --release -p visioflow-cli
 ## Publish checklist
 
 1. Run `.\scripts\build-release.ps1` and note the printed SHA256.
-2. Upload `dist/visioflow-win-x64.zip` to a GitHub release tag (e.g. `v0.1.2`).
+2. Upload `dist/visioflow-win-x64.zip` to a GitHub release tag (e.g. `v0.1.3`).
 3. Update `scripts/packaging/scoop/visioflow.json`:
    - `version`
    - `architecture.64bit.url` (release download URL)
@@ -56,7 +56,7 @@ cargo build --release -p visioflow-cli
 
 Scoop manifest path: `scripts/packaging/scoop/visioflow.json`
 
-`post_install` seeds rules, syncs to `%APPDATA%\visioflow\rules.json`, and installs shortcuts via bundled `install-shortcuts.ps1`. `uninstaller` removes shortcuts and launchers; rules persist under `~/scoop/persist/visioflow/` unless `scoop uninstall -p`.
+`post_install` seeds rules and syncs to `%APPDATA%\visioflow\rules.json`. Start Menu shortcuts come from the manifest `shortcuts` field (Scoop Apps → VisioFlow; no desktop shortcuts). `post_install` also removes legacy desktop shortcuts from older releases. `uninstaller` removes legacy launchers; rules persist under `~/scoop/persist/visioflow/` unless `scoop uninstall -p`.
 
 ## Local validation before publishing
 

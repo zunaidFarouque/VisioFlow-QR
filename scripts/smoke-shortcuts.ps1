@@ -49,7 +49,7 @@ try {
         -StartMenuProgramsDir $programs `
         -Force
 
-    foreach ($name in @("scan-auto", "scan-copy", "scan-plain")) {
+    foreach ($name in @("camera-auto", "camera-copy", "snip-auto", "snip-copy")) {
         $cmdPath = Join-Path $launcherRoot "$name.cmd"
         Assert-True (Test-Path $cmdPath) "missing launcher: $cmdPath"
         $content = Get-Content -Path $cmdPath -Raw
@@ -57,13 +57,19 @@ try {
         Assert-True ($content -match "capture --source") "launcher missing capture args: $cmdPath"
     }
 
+    $cameraAuto = Get-Content -Path (Join-Path $launcherRoot "camera-auto.cmd") -Raw
+    Assert-True ($cameraAuto -match "--source webcam") "camera-auto missing webcam source"
+    $snipAuto = Get-Content -Path (Join-Path $launcherRoot "snip-auto.cmd") -Raw
+    Assert-True ($snipAuto -match "--source snip") "snip-auto missing snip source"
+
     $startMenuFolder = Join-Path $programs "VisioFlow"
     foreach ($shortcut in @(
-        "VisioFlow Scan (Auto).lnk",
-        "VisioFlow Scan (Copy).lnk",
-        "VisioFlow Scan (Plain).lnk"
+        "VisioFlow QR Camera (auto).lnk",
+        "VisioFlow QR Camera (copy).lnk",
+        "VisioFlow QR Snip (auto).lnk",
+        "VisioFlow QR Snip (copy).lnk"
     )) {
-        Assert-True (Test-Path (Join-Path $desktop $shortcut)) "missing desktop shortcut: $shortcut"
+        Assert-True (-not (Test-Path (Join-Path $desktop $shortcut))) "desktop shortcut should not exist: $shortcut"
         Assert-True (Test-Path (Join-Path $startMenuFolder $shortcut)) "missing start menu shortcut: $shortcut"
     }
 

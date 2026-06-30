@@ -50,15 +50,15 @@ if (-not (Test-Path $shortcutInstaller)) { throw "Portable directory missing ins
 $appDataRoot = if ($AppDataDir) { $AppDataDir } else { $env:APPDATA }
 $launcherRoot = Join-Path $appDataRoot "VisioFlow\launchers"
 $rulesStore = Join-Path $appDataRoot "visioflow\rules.json"
-$desktop = if ($DesktopDir) { $DesktopDir } else { [Environment]::GetFolderPath("Desktop") }
 $programs = if ($StartMenuProgramsDir) { $StartMenuProgramsDir } else { [Environment]::GetFolderPath("Programs") }
+$legacyDesktop = if ($DesktopDir) { $DesktopDir } else { [Environment]::GetFolderPath("Desktop") }
 
 Ensure-DefaultRulesStore -DefaultRulesPath $rulesAsset -RulesStorePath $rulesStore -Overwrite:$Force
 
 & $shortcutInstaller `
     -BinPath $bin `
     -LauncherRoot $launcherRoot `
-    -DesktopDir $desktop `
+    -DesktopDir $legacyDesktop `
     -StartMenuProgramsDir $programs `
     -Force:$Force
 

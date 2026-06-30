@@ -29,8 +29,15 @@ Assert-True ($manifest.persist) "scoop manifest: persist missing"
 Assert-Contains $manifestRaw "VISIOFLOW_MODELS_DIR" "scoop manifest env_set"
 Assert-Contains $manifestRaw "pre_uninstall" "scoop manifest"
 Assert-Contains $manifestRaw "uninstaller" "scoop manifest"
-Assert-Contains $manifestRaw "VisioFlow Scan (Auto)" "scoop manifest uninstaller"
-Assert-Contains $manifestRaw "launchers" "scoop manifest uninstaller"
+Assert-Contains $manifestRaw "shortcuts" "scoop manifest"
+Assert-Contains $manifestRaw "VisioFlow QR Camera (auto)" "scoop manifest shortcuts"
+Assert-Contains $manifestRaw "VisioFlow QR Snip (copy)" "scoop manifest shortcuts"
+Assert-True (-not ($manifestRaw -match "install-shortcuts\.ps1")) "scoop manifest post_install should not call install-shortcuts.ps1"
+Assert-Contains $manifestRaw "VisioFlow Scan (Auto)" "scoop manifest legacy cleanup"
+Assert-Contains $manifestRaw "launchers" "scoop manifest legacy cleanup"
+
+$shortcuts = @($manifest.shortcuts)
+Assert-True ($shortcuts.Count -eq 4) "scoop manifest: shortcuts should have 4 entries"
 
 $postInstall = @($manifest.post_install)
 Assert-True ($postInstall.Count -ge 3) "scoop manifest: post_install should run bootstrap logic"
@@ -40,6 +47,7 @@ $uninstaller = $manifest.uninstaller
 Assert-True ($uninstaller) "scoop manifest: uninstaller block missing"
 $uninstallScript = @($uninstaller.script)
 Assert-True ($uninstallScript.Count -ge 1) "scoop manifest: uninstaller.script missing"
+Assert-True (-not ($manifestRaw -match ", 'VisioFlow'\)")) "scoop manifest uninstaller should not remove toast VisioFlow.lnk"
 
 $scoopUrl = $manifest.url
 if (-not $scoopUrl -and $manifest.architecture) {
@@ -51,5 +59,6 @@ if (-not $scoopHash -and $manifest.architecture) {
     $scoopHash = $manifest.architecture.'64bit'.hash
 }
 Assert-True $scoopHash "scoop manifest: hash missing"
+Assert-True ($scoopHash -ne "PLACEHOLDER_HASH") "scoop manifest: hash must be updated before release"
 
 Write-Host "Scoop manifest validation passed."

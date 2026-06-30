@@ -72,7 +72,9 @@ See [[Notifications]] for troubleshooting.
 
 ## Shortcuts (Windows)
 
-Generate double-click launchers and Desktop / Start Menu shortcuts:
+**Scoop:** Start Menu shortcuts under **Scoop Apps → VisioFlow** (four entries — no desktop shortcuts).
+
+**Traditional / portable / dev:**
 
 ```powershell
 .\scripts\install-shortcuts.ps1
@@ -82,11 +84,14 @@ Creates under `%APPDATA%\VisioFlow\launchers\`:
 
 | Launcher | Command |
 |----------|---------|
-| `scan-auto.cmd` | `capture --source snip` (auto-route) |
-| `scan-copy.cmd` | `capture --source snip --trigger copy` |
-| `scan-plain.cmd` | `capture --source snip --trigger plain --action stdout` |
+| `camera-auto.cmd` | `capture --source webcam` (auto-route) |
+| `camera-copy.cmd` | `capture --source webcam --trigger copy` |
+| `snip-auto.cmd` | `capture --source snip` (auto-route) |
+| `snip-copy.cmd` | `capture --source snip --trigger copy` |
 
-Bind hotkeys in AutoHotkey or PowerToys to these `.cmd` files.
+Start Menu shortcuts: `%APPDATA%\Microsoft\Windows\Start Menu\Programs\VisioFlow\`.
+
+Bind hotkeys in AutoHotkey or PowerToys to the `.cmd` launchers.
 
 ```powershell
 .\scripts\install-shortcuts.ps1 -BinPath .\target\release\visioflow.exe -Force
