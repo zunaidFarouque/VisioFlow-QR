@@ -1,11 +1,34 @@
 //! Post-route rule actions: WiFi connect and child-process exec.
 
+use std::path::Path;
 use std::process::Command;
 
 use crate::sys::SystemExecutor;
 
 use super::error::{Result as RuleResult, RuleError};
 use super::model::{ResolvedVars, Rule};
+
+#[cfg(windows)]
+fn command_for_exec_path(exec_path: &Path) -> Command {
+    // On Windows, `.ps1` is not directly executable by `CreateProcess`.
+    // We run it via PowerShell to support default action scripts under `share/actions/*.ps1`.
+    let exec_str = exec_path.to_string_lossy();
+    if exec_str.to_ascii_lowercase().ends_with(".ps1") {
+        let mut cmd = Command::new("powershell");
+        cmd.arg("-NoProfile")
+            .arg("-ExecutionPolicy")
+            .arg("Bypass")
+            .arg("-File")
+            .arg(exec_path);
+        return cmd;
+    }
+    Command::new(exec_path)
+}
+
+#[cfg(not(windows))]
+fn command_for_exec_path(exec_path: &Path) -> Command {
+    Command::new(exec_path)
+}
 
 /// Run configured rule actions (WiFi connect, then optional exec script).
 ///
@@ -23,7 +46,7 @@ pub fn run_rule_actions<E: SystemExecutor + ?Sized>(
         return Ok(None);
     };
 
-    let mut command = Command::new(exec_path);
+    let mut command = command_for_exec_path(exec_path);
     for (key, value) in vars.iter() {
         command.env(key, value);
     }
@@ -54,6 +77,8 @@ mod tests {
     use super::*;
     use crate::sys::MockSystemExecutor;
     use mockall::predicate::*;
+    use std::fs;
+    use tempfile::TempDir;
 
     #[test]
     fn connect_wifi_from_vars_invokes_executor() {
@@ -118,5 +143,30 @@ mod tests {
         let vars = ResolvedVars::new();
         let code = run_rule_actions(&rule, &vars, &mock).expect("no actions");
         assert!(code.is_none());
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn run_rule_actions_exec_powershell_script_on_windows() {
+        let dir = TempDir::new().expect("tempdir");
+        let out_path = dir.path().join("out.txt");
+        let script_path = dir.path().join("write-env.ps1");
+        let script = format!(
+            "$p = \"{}\"; Set-Content -Path $p -Value $env:QR_VAR_TEST -Encoding utf8",
+            out_path.display()
+        );
+        fs::write(&script_path, script).expect("write ps1");
+
+        let mock = MockSystemExecutor::new();
+        let mut rule = Rule::new("ps1");
+        rule.exec = Some(script_path);
+
+        let mut vars = ResolvedVars::new();
+        vars.insert("QR_VAR_TEST", "hello-ps1");
+
+        run_rule_actions(&rule, &vars, &mock).expect("actions");
+
+        let contents = fs::read_to_string(&out_path).expect("read out");
+        assert!(contents.contains("hello-ps1"));
     }
 }

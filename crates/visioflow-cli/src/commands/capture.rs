@@ -68,6 +68,13 @@ pub enum OnMismatch {
     None,
 }
 
+#[derive(Debug, Clone, Copy, ValueEnum, Default)]
+pub enum WifiHandoffMode {
+    #[default]
+    OpenSettings,
+    Print,
+}
+
 #[derive(Debug, Clone)]
 pub struct CaptureArgs {
     pub source: CaptureSource,
@@ -86,6 +93,7 @@ pub struct CaptureArgs {
     pub except: Vec<String>,
     pub only: Vec<String>,
     pub on_mismatch: OnMismatch,
+    pub wifi_handoff: WifiHandoffMode,
     pub rule_store: Option<std::path::PathBuf>,
     pub select: bool,
     pub interactive: bool,
@@ -590,6 +598,7 @@ pub fn apply_routing_after_halts(
     payloads: &[String],
     mode: RouteMode,
     on_mismatch: OnMismatch,
+    wifi_handoff: WifiHandoffMode,
     silent: bool,
 ) -> Result<RoutingApplyResult> {
     let payload = payloads.first().ok_or_else(|| {
@@ -613,7 +622,14 @@ pub fn apply_routing_after_halts(
         _ => {}
     }
 
-    if let Some(routed) = route_payload(store, payload, &mode).map_err(map_routing_error)? {
+    if let Some(mut routed) = route_payload(store, payload, &mode).map_err(map_routing_error)? {
+        if routed.vars.get("QR_NATIVE_WIFI_SSID").is_some() {
+            let mode_value = match wifi_handoff {
+                WifiHandoffMode::OpenSettings => "open-settings",
+                WifiHandoffMode::Print => "print",
+            };
+            routed.vars.insert("VISIOFLOW_WIFI_HANDOFF_MODE", mode_value);
+        }
         if routed.rule.wifi_connect && !silent {
             eprintln!(
                 "{}",
@@ -826,11 +842,40 @@ mod routing_tests {
             &["https://example.com".to_owned()],
             RouteMode::Explicit("asset".to_owned()),
             OnMismatch::Copy,
+            WifiHandoffMode::OpenSettings,
             true,
         )
         .expect("routing");
 
         assert!(matches!(result, RoutingApplyResult::CopiedPayload { .. }));
+    }
+
+    #[test]
+    fn apply_routing_sets_wifi_handoff_mode_env_for_wifi_payload() {
+        let (_dir, store) = temp_store();
+        let mut wifi = Rule::new("wifi");
+        wifi.auto_compatible = true;
+        wifi.priority = 5;
+        wifi.regex = Some("^WIFI:".to_owned());
+        store.upsert(&wifi).expect("upsert");
+
+        let result = apply_routing_after_halts(
+            &store,
+            &["WIFI:T:WPA;S:lab;P:secret;;".to_owned()],
+            RouteMode::Auto(AutoRouteOptions::default()),
+            OnMismatch::Copy,
+            WifiHandoffMode::Print,
+            true,
+        )
+        .expect("routing");
+
+        let RoutingApplyResult::Matched(routed) = result else {
+            panic!("expected matched");
+        };
+        assert_eq!(
+            routed.vars.get("VISIOFLOW_WIFI_HANDOFF_MODE"),
+            Some("print")
+        );
     }
 }
 

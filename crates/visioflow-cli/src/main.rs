@@ -5,6 +5,7 @@ use visioflow_cli::commands::capture::{
     apply_capture_halts, apply_routing_after_halts, route_mode_from_trigger, run_capture,
     write_capture_output, CaptureAction, CaptureArgs, CaptureFilter, CaptureSource,
     ExposureBracketMode, OnMismatch, PreviewPosition, RoutingApplyResult,
+    WifiHandoffMode,
 };
 use visioflow_cli::commands::exec::spawn_rule_actions;
 use visioflow_cli::commands::daemon::{
@@ -138,6 +139,10 @@ enum Commands {
         /// Fallback when routing fails: copy payload or exit strict
         #[arg(long, value_enum, default_value = "copy")]
         on_mismatch: OnMismatch,
+
+        /// WiFi QR action mode: open settings handoff UI or print credentials
+        #[arg(long, value_enum, default_value = "open-settings")]
+        wifi_handoff: WifiHandoffMode,
 
         /// Interactive list when multiple payloads are decoded
         #[arg(long)]
@@ -411,6 +416,7 @@ fn run() -> visioflow_core::error::Result<()> {
             except,
             only,
             on_mismatch,
+            wifi_handoff,
             select,
             interactive,
             store: rule_store,
@@ -432,6 +438,7 @@ fn run() -> visioflow_core::error::Result<()> {
                 except: except.clone(),
                 only: only.clone(),
                 on_mismatch,
+                wifi_handoff,
                 rule_store: rule_store.clone(),
                 select,
                 interactive,
@@ -488,6 +495,7 @@ fn run() -> visioflow_core::error::Result<()> {
                         &payloads,
                         mode,
                         on_mismatch,
+                        wifi_handoff,
                         cli.silent,
                     )?;
 
@@ -701,6 +709,8 @@ mod tests {
             "url",
             "--on-mismatch",
             "none",
+            "--wifi-handoff",
+            "print",
         ])
         .expect("cli should parse");
 
@@ -711,6 +721,7 @@ mod tests {
                 except,
                 only,
                 on_mismatch,
+                wifi_handoff,
                 ..
             } => {
                 assert!(action.is_none());
@@ -718,6 +729,7 @@ mod tests {
                 assert_eq!(except, vec!["wifi", "asset"]);
                 assert_eq!(only, vec!["url"]);
                 assert!(matches!(on_mismatch, OnMismatch::None));
+                assert!(matches!(wifi_handoff, WifiHandoffMode::Print));
             }
             Commands::Rule { .. } | Commands::Daemon { .. } => panic!("expected capture"),
         }

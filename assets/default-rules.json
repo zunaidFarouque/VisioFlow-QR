@@ -3,7 +3,8 @@
     "name": "wifi",
     "auto_compatible": true,
     "priority": 5,
-    "wifi_connect": true
+    "regex": "^WIFI:",
+    "exec": "share/actions/wifi-handoff"
   },
   "url": {
     "name": "url",
@@ -38,6 +39,13 @@
     "auto_compatible": true,
     "priority": 18,
     "regex": "BEGIN:VCARD",
+    "exec": "share/actions/copy-text"
+  },
+  "event": {
+    "name": "event",
+    "auto_compatible": true,
+    "priority": 19,
+    "regex": "BEGIN:VEVENT",
     "exec": "share/actions/copy-text"
   },
   "clipboard": {

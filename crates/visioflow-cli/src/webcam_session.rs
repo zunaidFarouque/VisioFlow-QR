@@ -29,6 +29,16 @@ pub const DEFAULT_EXPOSURE_STEP_MS: u64 = 100;
 /// Frames to discard after each exposure change so the sensor can settle.
 pub const DEFAULT_EXPOSURE_FLUSH_GRABS: u32 = 2;
 
+fn minimum_bracket_duration(timeout_secs: u64) -> Duration {
+    if timeout_secs >= 30 {
+        Duration::from_secs(20)
+    } else if timeout_secs >= 20 {
+        Duration::from_secs(10)
+    } else {
+        Duration::from_secs_f64((timeout_secs as f64) * 0.60)
+    }
+}
+
 /// Tunable timing for webcam decode and exposure bracket cycling.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct WebcamTiming {
@@ -153,7 +163,9 @@ where
     F: LiveFrameSource,
     D: CnnQrDecoder + 'static,
 {
+    let scan_started_at = Instant::now();
     let deadline = Instant::now() + Duration::from_secs(timeout_secs);
+    let min_bracket_until = scan_started_at + minimum_bracket_duration(timeout_secs);
     let first = frame_source.latest_frame()?;
     let capture_width = first.width;
     let capture_height = first.height;
@@ -247,6 +259,7 @@ where
                         &decode_worker,
                         &mut in_override_mode,
                         &mut bracketing_enabled,
+                        min_bracket_until,
                         verbose,
                     )? {
                         if disabled && verbose {
@@ -292,6 +305,7 @@ fn handle_decode_miss<F>(
     decode_worker: &AsyncDecodeWorker,
     in_override_mode: &mut bool,
     bracketing_enabled: &mut bool,
+    min_bracket_until: Instant,
     verbose: bool,
 ) -> Result<Option<bool>>
 where
@@ -314,7 +328,10 @@ where
             decode_worker.drain_pending_outcomes();
 
             let luma_after = bgr_mean_luma(&frame_source.latest_frame()?);
-            if luma_before >= 8.0 && luma_after < luma_before * 0.60 {
+            if luma_before >= 8.0
+                && luma_after < luma_before * 0.60
+                && Instant::now() >= min_bracket_until
+            {
                 exposure.enable_auto_exposure()?;
                 frame_source.flush_after_exposure_change(flush_grabs)?;
                 *in_override_mode = false;
@@ -428,5 +445,19 @@ mod tests {
     fn bgr_to_rgb_swaps_channels() {
         let frame = BgrFrame::new(1, 1, vec![1, 2, 3]);
         assert_eq!(bgr_to_rgb(&frame), vec![3, 2, 1]);
+    }
+
+    #[test]
+    fn minimum_bracket_duration_uses_spec_windows() {
+        assert_eq!(minimum_bracket_duration(30), Duration::from_secs(20));
+        assert_eq!(minimum_bracket_duration(45), Duration::from_secs(20));
+        assert_eq!(minimum_bracket_duration(20), Duration::from_secs(10));
+        assert_eq!(minimum_bracket_duration(25), Duration::from_secs(10));
+    }
+
+    #[test]
+    fn minimum_bracket_duration_uses_sixty_percent_otherwise() {
+        assert_eq!(minimum_bracket_duration(10), Duration::from_secs(6));
+        assert_eq!(minimum_bracket_duration(15), Duration::from_secs(9));
     }
 }

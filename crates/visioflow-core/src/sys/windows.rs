@@ -96,6 +96,14 @@ fn run_netsh(args: &[&str]) -> Result<()> {
     )))
 }
 
+fn is_profile_already_exists_error(err: &VisioFlowError) -> bool {
+    let VisioFlowError::Capture(message) = err else {
+        return false;
+    };
+    let m = message.to_ascii_lowercase();
+    m.contains("failed to add profile") && m.contains("already exists")
+}
+
 impl super::SystemExecutor for PlatformExecutor {
     /// Connect via `netsh wlan add profile` + `netsh wlan connect`.
     ///
@@ -107,13 +115,20 @@ impl super::SystemExecutor for PlatformExecutor {
         fs::write(tmp.path(), xml).map_err(VisioFlowError::Io)?;
 
         let profile_path = tmp.path().to_string_lossy();
-        run_netsh(&[
+        let add_profile_result = run_netsh(&[
             "wlan",
             "add",
             "profile",
             &format!("filename={profile_path}"),
             "user=current",
-        ])?;
+        ]);
+        if let Err(err) = add_profile_result {
+            // Existing profile in a different scope (e.g., GPO/other user) is common.
+            // Continue with connect attempt instead of failing early.
+            if !is_profile_already_exists_error(&err) {
+                return Err(err);
+            }
+        }
         run_netsh(&["wlan", "connect", &format!("name={ssid}")])
     }
 }
@@ -142,5 +157,21 @@ mod tests {
         let xml = wlan_profile_xml("Cafe&Co", "p\"ss");
         assert!(xml.contains("Cafe&amp;Co"));
         assert!(xml.contains("p&quot;ss"));
+    }
+
+    #[test]
+    fn detects_profile_already_exists_error() {
+        let err = VisioFlowError::Capture(
+            "netsh wlan failed (admin may be required): Failed to add profile \"Lab\". A profile with this name already exists in group policy or different user scope and cannot be overwritten.".into(),
+        );
+        assert!(is_profile_already_exists_error(&err));
+    }
+
+    #[test]
+    fn ignores_other_netsh_errors() {
+        let err = VisioFlowError::Capture(
+            "netsh wlan failed (admin may be required): The wireless local area network interface is powered down.".into(),
+        );
+        assert!(!is_profile_already_exists_error(&err));
     }
 }

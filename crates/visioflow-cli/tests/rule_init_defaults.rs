@@ -8,7 +8,7 @@ fn store_path(dir: &tempfile::TempDir) -> String {
 }
 
 const STOCK_RULE_NAMES: &[&str] = &[
-    "wifi", "url", "mailto", "tel", "geo", "vcard", "clipboard", "asset", "plain",
+    "wifi", "url", "mailto", "tel", "geo", "vcard", "event", "clipboard", "asset", "plain",
 ];
 
 #[test]
