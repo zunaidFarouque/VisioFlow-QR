@@ -9,7 +9,7 @@ Windows-first install guide. For Linux router-only usage, build with `--no-defau
 | Goal | Windows | Linux |
 |------|---------|-------|
 | Snip + rules + daemon | [Rust toolchain](https://rustup.rs/) | Rust toolchain |
-| Webcam capture | Above + LLVM + [vcpkg](https://vcpkg.io/) OpenCV (`scripts/dev-env.ps1`) | `libopencv-contrib-dev`, `clang`, WeChat models in `models/` |
+| Webcam capture | Release zip / Scoop install includes bundled `models/` (WeChat CNN). Dev builds: LLVM + [vcpkg](https://vcpkg.io/) OpenCV (`scripts/dev-env.ps1`) | `libopencv-contrib-dev`, `clang`, WeChat models in `models/` |
 
 ---
 
@@ -17,7 +17,7 @@ Windows-first install guide. For Linux router-only usage, build with `--no-defau
 
 Bucket: [Zunaid-Scoop-Bucket](https://github.com/zunaidFarouque/Zunaid-Scoop-Bucket). Manifest source in app repo: `scripts/packaging/scoop/visioflow.json`.
 
-`scoop install` runs bootstrap automatically — shortcuts, rules seed, and sync to `%APPDATA%\visioflow\rules.json`. User rules persist under `~/scoop/persist/visioflow/data/` across upgrades.
+`scoop install` runs bootstrap automatically — shortcuts, rules seed, and sync to `%APPDATA%\visioflow\rules.json`. The release zip includes **`models/`** beside `visioflow.exe` for webcam (no extra download). Scoop sets `VISIOFLOW_MODELS_DIR` to `$dir\models`.
 
 ```powershell
 scoop bucket add Zuanid-Scoop https://github.com/zunaidFarouque/Zunaid-Scoop-Bucket
@@ -47,7 +47,7 @@ cd D:\tools\visioflow-win-x64
 powershell -ExecutionPolicy Bypass -File .\bootstrap-portable.ps1 -DistRoot . -Force
 ```
 
-**Official release:** [v0.1.1 — visioflow-win-x64.zip](https://github.com/zunaidFarouque/VisioFlow-QR/releases/download/v0.1.1/visioflow-win-x64.zip)
+**Official release:** [v0.1.2 — visioflow-win-x64.zip](https://github.com/zunaidFarouque/VisioFlow-QR/releases/download/v0.1.2/visioflow-win-x64.zip)
 
 See [[Distribution-and-Release]] for building and publishing release zips.
 

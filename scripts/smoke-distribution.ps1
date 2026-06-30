@@ -83,6 +83,12 @@ Copy-Item -Path "assets\default-rules.json" -Destination (Join-Path $distRoot "d
 Copy-Item -Path "scripts\install-shortcuts.ps1" -Destination (Join-Path $distRoot "install-shortcuts.ps1")
 Copy-Item -Path $bootstrapPath -Destination (Join-Path $distRoot "bootstrap-portable.ps1")
 
+$modelsDir = Join-Path $distRoot "models"
+New-Item -ItemType Directory -Path $modelsDir -Force | Out-Null
+foreach ($modelFile in @("detect.prototxt", "detect.caffemodel", "sr.prototxt", "sr.caffemodel")) {
+    Set-Content -Path (Join-Path $modelsDir $modelFile) -Value "stub" -NoNewline
+}
+
 try {
     & ".\scripts\install-traditional.ps1" `
         -DistRoot $distRoot `
@@ -99,6 +105,7 @@ try {
         Assert-True (Test-Path $installedToast) "traditional install did not place visioflow-toast.exe"
     }
     Assert-True (Test-Path (Join-Path $installRoot "share\default-rules.json")) "traditional install missing default rules"
+    Assert-True (Test-Path (Join-Path $installRoot "models\detect.caffemodel")) "traditional install missing models"
 
     & $bootstrapPath `
         -DistRoot $distRoot `

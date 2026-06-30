@@ -26,7 +26,7 @@ $manifest = $manifestRaw | ConvertFrom-Json
 Assert-True ($manifest.version) "scoop manifest: version missing"
 Assert-True ($manifest.bin) "scoop manifest: bin missing"
 Assert-True ($manifest.persist) "scoop manifest: persist missing"
-Assert-Contains $manifestRaw "install-shortcuts.ps1" "scoop manifest post_install"
+Assert-Contains $manifestRaw "VISIOFLOW_MODELS_DIR" "scoop manifest env_set"
 Assert-Contains $manifestRaw "pre_uninstall" "scoop manifest"
 Assert-Contains $manifestRaw "uninstaller" "scoop manifest"
 Assert-Contains $manifestRaw "VisioFlow Scan (Auto)" "scoop manifest uninstaller"

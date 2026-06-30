@@ -13,6 +13,8 @@ scoop install Zuanid-Scoop/visioflow
 
 `post_install` seeds rules, syncs them to `%APPDATA%\visioflow\rules.json`, and runs `install-shortcuts.ps1` from the release zip. No manual bootstrap step.
 
+Release zips bundle `models/` (WeChat CNN files). Manifest `env_set` points `VISIOFLOW_MODELS_DIR` at `$dir\models`.
+
 `persist: data` keeps `rules.json` under `~/scoop/persist/visioflow/` across upgrades. `pre_uninstall` copies live rules back into persist before Scoop removes the app directory.
 
 `uninstaller` removes Desktop/Start Menu shortcuts and `%APPDATA%\VisioFlow\launchers`. It does **not** remove the `visioflow:` protocol handler in HKCU (safe to leave; refreshed when `visioflow notify test` runs after reinstall).

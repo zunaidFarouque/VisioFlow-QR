@@ -80,7 +80,8 @@ fn resolve_models_dir() -> Result<PathBuf> {
     }
 
     Err(VisioFlowError::Capture(
-        "unable to find /models directory; set VISIOFLOW_MODELS_DIR or run from project root"
+        "unable to find WeChat models directory; expected models/ next to visioflow.exe \
+         (included in release zip), or set VISIOFLOW_MODELS_DIR"
             .into(),
     ))
 }

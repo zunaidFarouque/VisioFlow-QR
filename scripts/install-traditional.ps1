@@ -63,6 +63,11 @@ if (Test-Path $distShare) {
     Copy-Item -Path (Join-Path $distShare "*") -Destination (Join-Path $resolvedInstall "share") -Recurse -Force
 }
 
+$distModels = Join-Path $resolvedDist "models"
+if (Test-Path $distModels) {
+    Copy-Item -Path $distModels -Destination (Join-Path $resolvedInstall "models") -Recurse -Force
+}
+
 $installScript = Join-Path $resolvedDist "install-shortcuts.ps1"
 if (-not (Test-Path $installScript)) {
     $installScript = Join-Path $PSScriptRoot "install-shortcuts.ps1"

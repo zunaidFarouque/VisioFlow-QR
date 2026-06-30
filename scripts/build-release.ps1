@@ -61,6 +61,20 @@ Copy-Item -Path "share\actions\*" -Destination (Join-Path $OutDir "share\actions
 Copy-Item -Path "scripts\install-shortcuts.ps1" -Destination (Join-Path $OutDir "install-shortcuts.ps1") -Force
 Copy-Item -Path "scripts\bootstrap-portable.ps1" -Destination (Join-Path $OutDir "bootstrap-portable.ps1") -Force
 Copy-Item -Path "scripts\install-traditional.ps1" -Destination (Join-Path $OutDir "install-traditional.ps1") -Force
+Copy-Item -Path "scripts\download-wechat-models.ps1" -Destination (Join-Path $OutDir "download-wechat-models.ps1") -Force
+
+if (-not $RouterOnly) {
+    Write-Host "==> Downloading WeChat models into $OutDir\models ..."
+    & (Join-Path $PSScriptRoot "download-wechat-models.ps1") -ModelsDir (Join-Path $OutDir "models")
+
+    $modelFiles = @("detect.prototxt", "detect.caffemodel", "sr.prototxt", "sr.caffemodel")
+    foreach ($modelFile in $modelFiles) {
+        $modelPath = Join-Path (Join-Path $OutDir "models") $modelFile
+        if (-not (Test-Path $modelPath)) {
+            throw "Missing staged model file: $modelPath"
+        }
+    }
+}
 
 if ($SkipZip) {
     Write-Host "Staging complete (zip skipped): $OutDir"

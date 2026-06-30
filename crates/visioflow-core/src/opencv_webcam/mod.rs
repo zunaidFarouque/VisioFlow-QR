@@ -6,3 +6,6 @@ pub mod frame_stream;
 pub mod models;
 pub mod scanner;
 pub mod wechat_decoder;
+
+#[cfg(test)]
+mod models_test;

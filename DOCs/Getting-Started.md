@@ -11,7 +11,7 @@ For Linux router-only usage, skip webcam sections and build with `--no-default-f
 | Goal | Windows | Linux |
 |------|---------|-------|
 | Snip + rules + daemon | [Rust toolchain](https://rustup.rs/) | Rust toolchain |
-| Webcam capture | Above + LLVM + [vcpkg](https://vcpkg.io/) OpenCV (`scripts/dev-env.ps1`) | `libopencv-contrib-dev`, `clang`, WeChat models in `models/` |
+| Webcam capture | Release zip / Scoop install includes bundled `models/` (WeChat CNN). Dev builds: LLVM + [vcpkg](https://vcpkg.io/) OpenCV (`scripts/dev-env.ps1`) | `libopencv-contrib-dev`, `clang`, WeChat models in `models/` |
 
 ---
 
@@ -27,6 +27,8 @@ Bucket repo: [Zunaid-Scoop-Bucket](https://github.com/zunaidFarouque/Zunaid-Scoo
 scoop bucket add Zuanid-Scoop https://github.com/zunaidFarouque/Zunaid-Scoop-Bucket
 scoop install Zuanid-Scoop/visioflow
 ```
+
+Webcam works out of the box: release zips bundle `models/` beside `visioflow.exe`. Scoop sets `VISIOFLOW_MODELS_DIR` to `$dir\models`.
 
 ### 2. Traditional machine-local install
 
