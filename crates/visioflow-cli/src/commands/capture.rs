@@ -11,7 +11,7 @@ use crate::capture::{FileFrameSource, SnipFrameSource};
 #[cfg(feature = "opencv-webcam")]
 use crate::webcam_session::{capture_webcam_with_preview, WebcamTiming, DEFAULT_WEBCAM_TIMEOUT_SECS};
 
-pub use crate::commands::exec::spawn_rule_exec;
+pub use crate::commands::exec::spawn_rule_actions;
 
 #[cfg(not(feature = "opencv-webcam"))]
 const DEFAULT_WEBCAM_TIMEOUT_SECS: u64 = 20;
@@ -494,7 +494,7 @@ mod trigger_tests {
     }
 
     #[test]
-    fn spawn_rule_exec_passes_env_to_child() {
+    fn spawn_rule_actions_passes_env_to_child() {
         let dir = TempDir::new().expect("tempdir");
         let out_path = dir.path().join("child-out.txt");
         let script_path = write_env_echo_script(&dir, &out_path);
@@ -505,7 +505,7 @@ mod trigger_tests {
         let mut vars = ResolvedVars::new();
         vars.insert("QR_VAR_ASSET", "triggered-99");
 
-        spawn_rule_exec(&rule, &vars).expect("spawn");
+        spawn_rule_actions(&rule, &vars).expect("spawn");
 
         let contents = fs::read_to_string(&out_path).expect("read child output");
         assert!(contents.contains("triggered-99"));

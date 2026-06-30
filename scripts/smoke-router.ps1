@@ -35,17 +35,24 @@ try {
     & $bin rule --store $store config asset --regex "ASSET:(?P<asset>\d+)" --map asset:ASSET
     Assert-LastExit "rule config"
 
-    $out = & $bin rule --store $store execute asset --payload "ASSET:99" 2>&1 | Out-String
+    $out = & $bin rule --store $store execute asset --payload "ASSET:99" --no-exec 2>&1 | Out-String
     if ($out -notmatch "QR_VAR_ASSET=99") {
         throw "rule execute unexpected output:`n$out"
     }
     Write-Host "    OK"
 
     Write-Host "==> --export bash (rule execute)..."
-    $out = & $bin --export bash rule --store $store execute asset --payload "ASSET:99" 2>&1 | Out-String
+    $out = & $bin --export bash rule --store $store execute asset --payload "ASSET:99" --no-exec 2>&1 | Out-String
     if ($out -notmatch "export QR_VAR_ASSET='99'") {
         throw "export bash unexpected output:`n$out"
     }
+    Write-Host "    OK"
+
+    Write-Host "==> rule list / delete..."
+    $list = & $bin rule --store $store list 2>&1 | Out-String
+    if ($list -notmatch "asset") { throw "rule list missing asset:`n$list" }
+    & $bin rule --store $store delete asset
+    Assert-LastExit "rule delete"
     Write-Host "    OK"
 
     Write-Host "==> capture --trigger via integration test (generates QR fixture)..."

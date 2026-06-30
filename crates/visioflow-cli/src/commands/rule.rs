@@ -63,10 +63,61 @@ pub fn rule_config(
     store.upsert(&rule)
 }
 
-pub fn rule_set_action(store: &dyn RuleStore, name: &str, exec: &Path) -> RuleResult<()> {
+pub fn rule_set_action(
+    store: &dyn RuleStore,
+    name: &str,
+    exec: Option<&Path>,
+    wifi_connect: bool,
+) -> RuleResult<()> {
+    if exec.is_none() && !wifi_connect {
+        return Err(RuleError::StoreIo(
+            "set-action requires --exec and/or --wifi-connect".to_owned(),
+        ));
+    }
+
     let mut rule = store.get(name)?;
-    rule.exec = Some(exec.to_path_buf());
+    if let Some(path) = exec {
+        rule.exec = Some(path.to_path_buf());
+    }
+    if wifi_connect {
+        rule.wifi_connect = true;
+    }
     store.upsert(&rule)
+}
+
+pub fn rule_list(store: &dyn RuleStore) -> RuleResult<Vec<Rule>> {
+    let rules = store.load_all()?;
+    Ok(rules.into_values().collect())
+}
+
+pub fn rule_delete(store: &dyn RuleStore, name: &str) -> RuleResult<()> {
+    store.delete(name)
+}
+
+pub fn write_rule_list_output(
+    rules: &[Rule],
+    format: RuleOutputFormat,
+    silent: bool,
+) -> Result<(), VisioFlowError> {
+    if silent {
+        return Ok(());
+    }
+
+    match format {
+        RuleOutputFormat::Plain => {
+            for rule in rules {
+                println!("{}", rule.name);
+            }
+        }
+        RuleOutputFormat::Json => {
+            let json = serde_json::to_string(rules).map_err(|e| {
+                VisioFlowError::Capture(format!("json encode failed: {e}"))
+            })?;
+            println!("{json}");
+        }
+    }
+
+    Ok(())
 }
 
 pub fn rule_execute(
@@ -184,11 +235,85 @@ mod tests {
         let (_dir, store) = temp_store();
         rule_create(&store, "run").expect("create");
 
-        rule_set_action(&store, "run", Path::new("/bin/echo"))
+        rule_set_action(&store, "run", Some(Path::new("/bin/echo")), false)
             .expect("set-action");
 
         let rule = store.get("run").expect("rule");
         assert_eq!(rule.exec.as_deref(), Some(Path::new("/bin/echo")));
+        assert!(!rule.wifi_connect);
+    }
+
+    #[test]
+    fn rule_set_action_persists_wifi_connect_flag() {
+        let (_dir, store) = temp_store();
+        rule_create(&store, "wifi").expect("create");
+
+        rule_set_action(&store, "wifi", None, true).expect("set-action");
+
+        let rule = store.get("wifi").expect("rule");
+        assert!(rule.wifi_connect);
+        assert!(rule.exec.is_none());
+    }
+
+    #[test]
+    fn rule_set_action_requires_exec_or_wifi() {
+        let (_dir, store) = temp_store();
+        rule_create(&store, "empty").expect("create");
+        let err = rule_set_action(&store, "empty", None, false).expect_err("needs flag");
+        assert!(matches!(err, RuleError::StoreIo(_)));
+    }
+
+    #[test]
+    fn rule_list_returns_all_rules_sorted_by_store_order() {
+        let (_dir, store) = temp_store();
+        rule_create(&store, "alpha").expect("create");
+        rule_create(&store, "beta").expect("create");
+
+        let rules = rule_list(&store).expect("list");
+        let names: Vec<&str> = rules.iter().map(|r| r.name.as_str()).collect();
+        assert_eq!(names, ["alpha", "beta"]);
+    }
+
+    #[test]
+    fn rule_delete_removes_existing_rule() {
+        let (_dir, store) = temp_store();
+        rule_create(&store, "gone").expect("create");
+
+        rule_delete(&store, "gone").expect("delete");
+        assert!(store.get("gone").is_err());
+    }
+
+    #[test]
+    fn rule_delete_errors_when_missing() {
+        let (_dir, store) = temp_store();
+        let err = rule_delete(&store, "missing").expect_err("not found");
+        assert!(matches!(err, RuleError::NotFound(_)));
+    }
+
+    #[test]
+    fn write_rule_list_output_plain_one_name_per_line() {
+        let rules = vec![Rule::new("alpha"), Rule::new("beta")];
+        let mut buf = Vec::new();
+        for rule in &rules {
+            use std::io::Write;
+            writeln!(buf, "{}", rule.name).expect("write");
+        }
+        let output = String::from_utf8(buf).expect("utf8");
+        assert_eq!(output, "alpha\nbeta\n");
+    }
+
+    #[test]
+    fn write_rule_list_output_json_roundtrip() {
+        let mut rule = Rule::new("asset");
+        rule.regex = Some(r"ASSET:(?P<asset>\d+)".to_owned());
+        let rules = vec![rule];
+        let json = serde_json::to_string(&rules).expect("json");
+        let parsed: Vec<Rule> = serde_json::from_str(&json).expect("parse");
+        assert_eq!(parsed[0].name, "asset");
+        assert_eq!(
+            parsed[0].regex.as_deref(),
+            Some(r"ASSET:(?P<asset>\d+)")
+        );
     }
 
     #[test]

@@ -274,15 +274,20 @@ Wire format details: [`IPC_PROTOCOL.md`](IPC_PROTOCOL.md).
 | Command | Purpose |
 |---|---|
 | `rule create <NAME>` | Create an empty rule |
+| `rule list` | Print rule names (plain) or full rule objects (`--output json`) |
 | `rule config <NAME> --regex <PAT> [--map G:VAR ...]` | Set regex and optional capture mappings |
-| `rule set-action <NAME> --exec <PATH>` | Script to run after successful route |
+| `rule set-action <NAME> [--exec <PATH>] [--wifi-connect]` | Script and/or OS WiFi connect after route |
 | `rule execute <NAME> --payload <STR> [--no-exec]` | Apply rule; spawns `--exec` unless `--no-exec` |
+| `rule delete <NAME>` | Remove a rule from the JSON store |
 
-**Example: WiFi QR (native parsing on trigger / daemon)**
+You can also edit `rules.json` directly (same schema as `rule list --output json`). After manual edits, run `visioflow daemon reload` if a daemon is running so it picks up changes from disk.
+
+**Example: WiFi QR (native parsing + auto-connect)**
 
 ```powershell
 visioflow rule create wifi
-# No regex required — native parsers fill QR_NATIVE_WIFI_* on full route
+visioflow rule set-action wifi --wifi-connect
+# Native parsers fill QR_NATIVE_WIFI_*; --wifi-connect runs OS connect (netsh / nmcli)
 visioflow capture --source snip --action stdout --trigger wifi
 ```
 
@@ -295,6 +300,49 @@ visioflow rule execute uri --payload "https://example.com/path"
 ```
 
 Integration tests can pass `--store <path>` to use a temporary rules file (hidden in normal use).
+
+### Editing `rules.json` directly
+
+Rules are stored as a single JSON object: **keys are rule names**, values are rule records. The CLI writes the same shape via `rule create` / `rule config` / `rule set-action`.
+
+**Example** (`%APPDATA%\visioflow\rules.json` on Windows):
+
+```json
+{
+  "asset": {
+    "name": "asset",
+    "regex": "ASSET:(?P<asset>\\d+)",
+    "captures": {
+      "asset": "ASSET"
+    },
+    "exec": "C:\\scripts\\handle-asset.ps1"
+  },
+  "wifi": {
+    "name": "wifi"
+  }
+}
+```
+
+| Field | Required | Notes |
+|---|---|---|
+| `name` | yes | Must match the object key |
+| `regex` | no | Rust regex; omit for native-parser-only rules (e.g. WiFi) |
+| `captures` | no | Map capture group → env suffix (`asset` → `QR_VAR_ASSET`) |
+| `exec` | no | Script path run after a successful route |
+
+**Escaping**
+
+- **Regex in JSON:** backslashes must be doubled (`\d` → `\\d`, `\w` → `\\w`).
+- **Windows paths:** use doubled backslashes (`C:\\scripts\\foo.ps1`) or forward slashes (`C:/scripts/foo.ps1`).
+- **Special characters in regex:** quote-sensitive chars still need JSON string escaping (e.g. `"` → `\"`).
+
+After editing the file on disk, reload an in-memory daemon (or restart it):
+
+```powershell
+visioflow daemon reload
+```
+
+Without `--ipc-socket`, the CLI reads `rules.json` on each local `rule` / `capture --trigger` call — no reload needed.
 
 ---
 

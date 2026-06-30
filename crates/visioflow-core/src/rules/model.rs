@@ -14,6 +14,9 @@ pub struct Rule {
     pub captures: BTreeMap<String, String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub exec: Option<PathBuf>,
+    /// When true, connect to WiFi using `QR_NATIVE_WIFI_*` vars after routing.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub wifi_connect: bool,
 }
 
 impl Rule {
@@ -24,6 +27,7 @@ impl Rule {
             regex: None,
             captures: BTreeMap::new(),
             exec: None,
+            wifi_connect: false,
         }
     }
 }

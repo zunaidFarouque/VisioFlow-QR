@@ -2,7 +2,7 @@ use std::path::PathBuf;
 
 use clap::{Parser, Subcommand, ValueEnum};
 use visioflow_cli::commands::capture::{
-    apply_capture_halts, route_capture_trigger, run_capture, spawn_rule_exec, write_capture_output,
+    apply_capture_halts, route_capture_trigger, run_capture, spawn_rule_actions, write_capture_output,
     CaptureAction, CaptureArgs, CaptureFilter, CaptureSource, ExposureBracketMode, PreviewPosition,
 };
 use visioflow_cli::commands::daemon::{
@@ -10,8 +10,8 @@ use visioflow_cli::commands::daemon::{
     route_capture_trigger_via_ipc, rule_execute_via_ipc, run_daemon_server_loop,
 };
 use visioflow_cli::commands::rule::{
-    map_rule_error, open_store, rule_config, rule_create, rule_execute, rule_set_action,
-    write_resolved_output, RuleOutputFormat,
+    map_rule_error, open_store, rule_config, rule_create, rule_delete, rule_execute, rule_list,
+    rule_set_action, write_resolved_output, write_rule_list_output, RuleOutputFormat,
 };
 #[cfg(feature = "opencv-webcam")]
 use visioflow_cli::webcam_preview::DEFAULT_DECODE_INTERVAL_MS;
@@ -190,12 +190,16 @@ enum RuleCommands {
         map: Vec<String>,
     },
 
-    /// Set the executable action for a rule
+    /// Set post-route actions for a rule (exec script and/or WiFi connect)
     SetAction {
         name: String,
 
         #[arg(long)]
-        exec: PathBuf,
+        exec: Option<PathBuf>,
+
+        /// Connect to WiFi using QR_NATIVE_WIFI_* vars after routing
+        #[arg(long)]
+        wifi_connect: bool,
     },
 
     /// Apply a rule to a payload and print resolved variables
@@ -208,6 +212,14 @@ enum RuleCommands {
         /// Resolve and print variables without spawning the rule exec action
         #[arg(long)]
         no_exec: bool,
+    },
+
+    /// List all rules in the store
+    List,
+
+    /// Remove a rule from the store
+    Delete {
+        name: String,
     },
 }
 
@@ -269,8 +281,18 @@ fn run() -> visioflow_core::error::Result<()> {
                     )
                     .map_err(map_rule_error)?;
                 }
-                RuleCommands::SetAction { name, exec } => {
-                    rule_set_action(&store, &name, &exec).map_err(map_rule_error)?;
+                RuleCommands::SetAction {
+                    name,
+                    exec,
+                    wifi_connect,
+                } => {
+                    rule_set_action(
+                        &store,
+                        &name,
+                        exec.as_deref(),
+                        wifi_connect,
+                    )
+                    .map_err(map_rule_error)?;
                 }
                 RuleCommands::Execute {
                     name,
@@ -283,7 +305,7 @@ fn run() -> visioflow_core::error::Result<()> {
                         let routed =
                             rule_execute(&store, &name, &payload).map_err(map_rule_error)?;
                         if !no_exec {
-                            spawn_rule_exec(&routed.rule, &routed.vars).map_err(map_rule_error)?;
+                            spawn_rule_actions(&routed.rule, &routed.vars).map_err(map_rule_error)?;
                         }
                         routed.vars
                     };
@@ -293,6 +315,13 @@ fn run() -> visioflow_core::error::Result<()> {
                     } else {
                         write_resolved_output(&resolved, output_format, cli.silent)?;
                     }
+                }
+                RuleCommands::List => {
+                    let rules = rule_list(&store).map_err(map_rule_error)?;
+                    write_rule_list_output(&rules, output_format, cli.silent)?;
+                }
+                RuleCommands::Delete { name } => {
+                    rule_delete(&store, &name).map_err(map_rule_error)?;
                 }
             }
         }
@@ -420,7 +449,7 @@ fn run() -> visioflow_core::error::Result<()> {
                         write_resolved_output(&routed.vars, RuleOutputFormat::Plain, cli.silent)?;
                     }
 
-                    spawn_rule_exec(&routed.rule, &routed.vars).map_err(map_rule_error)?;
+                    spawn_rule_actions(&routed.rule, &routed.vars).map_err(map_rule_error)?;
                 }
             } else if let Some(export_fmt) = cli.export {
                 let vars = visioflow_core::vars_from_payloads(&payloads);

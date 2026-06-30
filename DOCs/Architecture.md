@@ -5,8 +5,9 @@ VisioFlow is an "Optical Automation Engine" and "Visual Payload Router." It brid
 
 ## 2. Technology Stack & Constraints
 * **Backend:** Rust (native core; OpenCV used for live webcam capture/decode only).
-* **Frontend/Daemon:** Tauri (Headless mode for the background daemon).
+* **Daemon:** Pure-Rust background service (`visioflow daemon`) — **implemented** (`crates/visioflow-cli/src/commands/daemon.rs`, IPC in `visioflow-core`). Tauri headless wrapper is **optional / deferred**; not required for production use.
 * **Cross-Platform:** Windows and Linux (macOS is explicitly out of scope).
+* **User guide:** [`USER_GUIDE.md`](USER_GUIDE.md) — install, capture, rules, export, daemon, troubleshooting.
 * **Strict Constraints:**
   * **Zero Bloat (static capture):** Snip and file capture remain native Rust (`rqrr`, Otsu/Median preprocessing).
   * **Webcam Optical Engine:** Live webcam capture uses OpenCV `VideoCapture` with a spin-thread `grab()` loop, WeChat CNN decoding, and temporal exposure bracketing. See [`DOCs/Rust OpenCV QR Scanning Architecture.md`](Rust%20OpenCV%20QR%20Scanning%20Architecture.md).
@@ -16,11 +17,11 @@ VisioFlow is an "Optical Automation Engine" and "Visual Payload Router." It brid
 ## 3. CLI Architecture (The "Noun-Verb" Paradigm)
 The CLI must follow this exact structure using the `clap` crate:
 * **Global Flags:** `--output <plain|json>`, `--verbose`, `--silent`, `--export <bash|ps1>` (CRITICAL for parent shell evaluation), `--ipc-socket <PATH>`.
-* **`capture` (The Execution Engine):** * `--source <snip|webcam>`, `--filter <otsu|median>`, `--action <stdout|copy>`, `--trigger <RULE_NAME>`, `--select` (Interactive TUI for multiple payloads).
-* **`rule` (The Automation Manager):**
+* **`capture` (The Execution Engine):** `--source <snip|webcam>`, `--filter <otsu|median>`, `--action <stdout|copy>`, `--trigger <RULE_NAME>` — **implemented**. `--select` (multi-payload TUI) and `--interactive` (`[y/N]` confirm) — **implemented** (`capture.rs`).
+* **`rule` (The Automation Manager):** — **implemented**
   * `create <NAME>`, `config <NAME> --regex <PAT>`, `config <NAME> --map <G:VAR>`, `execute <NAME> --payload <STR>`, `set-action <NAME> --exec <PATH>`.
-* **`daemon` (The Background Service):**
-  * `start --hidden`, `stop`, `status`, `reload`.
+* **`daemon` (The Background Service):** — **implemented** (pure Rust; no Tauri)
+  * `start [--hidden]`, `stop`, `status`, `reload`.
 
 ## 4. Execution Sandbox Rules
 * Environment variables populated from regex capture groups must strictly live in the child process execution block (e.g., `std::process::Command::new().env()`). They must never persist globally.

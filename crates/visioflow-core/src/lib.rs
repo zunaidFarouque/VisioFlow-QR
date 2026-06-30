@@ -27,9 +27,11 @@ pub use ipc::{
 pub use logging::{format_log_line, is_sensitive_key, redact_env_map, redact_sensitive, REDACTED};
 pub use optical::{apply_ev_adjustment_f32, preprocess_frame, MAX_FRAME_WIDTH};
 pub use rules::{
-    apply_rule, merge_native_vars, resolve_payload_fully, FileRuleStore, PayloadRouter,
-    ResolvedVars, RoutedPayload, Rule, RuleEngine, RuleError, RuleResult, RuleStore,
+    apply_rule, connect_wifi_from_vars, merge_native_vars, resolve_payload_fully, run_rule_actions,
+    FileRuleStore, PayloadRouter, ResolvedVars, RoutedPayload, Rule, RuleEngine, RuleError,
+    RuleResult, RuleStore,
 };
+pub use sys::{platform_executor, SystemExecutor};
 pub use traits::{
     BgrFrame, CnnQrDecoder, ExposureHal, FrameSource, LiveFrameSource, OpticalFilterKind,
     OpticalScanner, PayloadDecoder,

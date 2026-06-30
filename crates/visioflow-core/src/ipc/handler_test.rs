@@ -126,6 +126,36 @@ fn handler_execute_missing_rule_returns_error() {
 }
 
 #[test]
+fn handler_execute_wifi_connect_missing_ssid_returns_error() {
+    let dir = TempDir::new().expect("tempdir");
+    let path = dir.path().join("rules.json");
+    let store = FileRuleStore::new(path);
+    let mut rules = BTreeMap::new();
+    let mut rule = Rule::new("wifi");
+    rule.wifi_connect = true;
+    rules.insert("wifi".to_owned(), rule);
+    store.save_all(&rules).expect("save");
+
+    let mut handler = DaemonHandler::new(store).expect("handler");
+    let response = handler.handle(
+        ClientMessage::ExecuteRule {
+            id: 8,
+            name: "wifi".into(),
+            payload: "not-a-wifi-payload".into(),
+        },
+        false,
+    );
+
+    match response {
+        ServerMessage::Error { id, message } => {
+            assert_eq!(id, 8);
+            assert!(message.contains("wifi connect failed"));
+        }
+        other => panic!("expected Error, got {other:?}"),
+    }
+}
+
+#[test]
 fn handler_reload_refreshes_rules_from_disk() {
     let dir = TempDir::new().expect("tempdir");
     let path = dir.path().join("rules.json");

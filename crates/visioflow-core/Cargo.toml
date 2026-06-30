@@ -23,6 +23,10 @@ opencv = { version = "0.98", optional = true, default-features = false, features
 
 [target.'cfg(unix)'.dependencies]
 nix = "0.29"
+tempfile = "3"
+
+[target.'cfg(windows)'.dependencies]
+tempfile = "3"
 
 [dev-dependencies]
 mockall = "0.13"

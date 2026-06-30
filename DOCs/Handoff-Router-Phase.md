@@ -1,6 +1,6 @@
 # VisioFlow — Handoff: Visual Payload Router Phase
 
-> **Purpose:** Handoff for continuing VisioFlow after router phase (rules, export, IPC, daemon, capture halts). Attach when implementing WiFi `SystemExecutor`, Tauri, or extra parsers.
+> **Purpose:** Handoff for post-router polish and future work (Tauri daemon, OTLP telemetry). WiFi connect, rule list/delete, and IPC E2E tests are implemented.
 
 ---
 
@@ -83,18 +83,20 @@ cargo run --release -p visioflow-cli -- capture --source webcam --action stdout 
 | Sensitive logging redaction | `visioflow-core/src/logging/` |
 | Air-gap startup guard | `visioflow-core/src/airgap.rs`, `--disable-telemetry` |
 | `rule execute --no-exec` + full native merge | `commands/rule.rs`, `commands/exec.rs` |
+| `rule list` / `rule delete` | `commands/rule.rs` |
+| WiFi `SystemExecutor` + `--wifi-connect` | `sys/`, `rules/actions.rs` |
+| IPC socket E2E test (CI) | `ipc/transport_test.rs` |
 
 ### Not built yet
 
 | Item | Notes |
 |---|---|
-| Tauri headless daemon | Deferred; pure-Rust daemon in repo |
-| WiFi `SystemExecutor` | `connect_wifi` stub in `sys/` |
+| Tauri headless daemon | Deferred; pure-Rust daemon ships today |
 | OTLP / network telemetry | Air-gap hook exists; no telemetry crate yet |
 
 ### Extension points
 
-- `visioflow_core::sys::SystemExecutor` — platform trait (wifi action stub)
+- `visioflow_core::sys::SystemExecutor` — WiFi connect implemented; extend for other OS actions
 - `visioflow_core::traits` — optical / decode traits (stable)
 - Global `--ipc-socket` / `VISIOFLOW_IPC_SOCKET` — CLI ↔ daemon routing
 
@@ -118,7 +120,7 @@ cargo run --release -p visioflow-cli -- capture --source webcam --action stdout 
 
 ### `rule` (automation manager) — **done**
 
-- `create <NAME>`, `config <NAME> --regex`, `config <NAME> --map`, `execute <NAME> --payload`, `set-action <NAME> --exec`
+- `create <NAME>`, `config <NAME> --regex`, `config <NAME> --map`, `execute <NAME> --payload`, `set-action [--exec] [--wifi-connect]`, `list`, `delete <NAME>`
 
 ### `daemon` (background service) — **done**
 
@@ -144,14 +146,12 @@ cargo run --release -p visioflow-cli -- capture --source webcam --action stdout 
 
 ## 7. Suggested next work
 
+Router phases A–F and Wave 4 polish are complete. Optional next work:
+
 | Priority | Deliverable |
 |---|---|
-| **1** | WiFi `SystemExecutor::connect_wifi` (Windows + Linux) |
-| **2** | Rule actions that invoke `SystemExecutor` (e.g. auto-connect WiFi QR) |
-| **Later** | Tauri headless daemon (optional; Rust daemon already works) |
-| **Later** | OTLP telemetry with air-gap-aware init |
-
-Phases A–F (rules, export, IPC, daemon, `--trigger`, `--select`, `--interactive`) are complete.
+| **Later** | OTLP telemetry (air-gap hook exists; no exporter yet) |
+| **Later** | Tauri headless daemon (optional; pure-Rust daemon ships today) |
 
 ---
 
@@ -186,4 +186,4 @@ Release binary (~19 MB standalone on Windows with static vcpkg triplet). WeChat 
 
 Copy and adapt:
 
-> Router phase is complete (rules, export, IPC, daemon, capture halts, native parsers, air-gap). Next: WiFi `SystemExecutor::connect_wifi` and rule actions that use it. Read `DOCs/Handoff-Router-Phase.md`, `DOCs/USER_GUIDE.md`. Follow TDD; do not refactor webcam/OpenCV unless required. Tauri daemon is deferred.
+> Router + polish phases are complete. Optional next: Tauri daemon or OTLP telemetry. Read `DOCs/USER_GUIDE.md`. Do not refactor webcam/OpenCV unless required.

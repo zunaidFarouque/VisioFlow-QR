@@ -22,6 +22,9 @@ pub enum RuleError {
 
     #[error("exec failed: {0}")]
     ExecFailed(String),
+
+    #[error("wifi connect failed: {0}")]
+    WifiConnectFailed(String),
 }
 
 pub type Result<T> = std::result::Result<T, RuleError>;

@@ -1,13 +1,14 @@
 //! Daemon-side request handling for IPC messages.
 
 use std::collections::BTreeMap;
-use std::process::Command;
 
 use crate::ipc::{ClientMessage, RequestId, ServerMessage};
 use crate::logging::{format_log_line, redact_env_map};
 use crate::rules::{
-    FileRuleStore, ResolvedVars, Rule, RuleEngine, RuleError, RuleResult, RuleStore, RoutedPayload,
+    run_rule_actions, FileRuleStore, ResolvedVars, Rule, RuleEngine, RuleError, RuleResult,
+    RuleStore, RoutedPayload,
 };
+use crate::sys::platform_executor;
 
 /// In-memory rule store loaded from disk for the daemon hot path.
 #[derive(Debug, Clone, Default)]
@@ -127,7 +128,7 @@ impl DaemonHandler {
                         eprintln!("{}", format_log_line(&key, &value));
                     }
                 }
-                let exit_code = match run_exec_if_configured(&rule, &vars) {
+                let exit_code = match run_rule_actions(&rule, &vars, &platform_executor()) {
                     Ok(code) => code,
                     Err(err) => return rule_error_response(id, err),
                 };
@@ -157,23 +158,6 @@ fn rule_error_response(id: RequestId, err: RuleError) -> ServerMessage {
             message: other.to_string(),
         },
     }
-}
-
-fn run_exec_if_configured(rule: &Rule, resolved: &ResolvedVars) -> RuleResult<Option<i32>> {
-    let Some(exec_path) = rule.exec.as_ref() else {
-        return Ok(None);
-    };
-
-    let mut command = Command::new(exec_path);
-    for (key, value) in resolved.iter() {
-        command.env(key, value);
-    }
-
-    let status = command
-        .status()
-        .map_err(|e| RuleError::StoreIo(format!("exec failed: {e}")))?;
-
-    Ok(Some(status.code().unwrap_or(-1)))
 }
 
 /// Route a payload through a rule and merge native parser vars (shared with local execute).
