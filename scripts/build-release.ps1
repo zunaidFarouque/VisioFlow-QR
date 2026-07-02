@@ -57,7 +57,7 @@ New-Item -ItemType Directory -Path (Join-Path $OutDir "share\actions") -Force | 
 Copy-Item -Path $mainBin -Destination (Join-Path $OutDir "visioflow.exe") -Force
 Copy-Item -Path $toastBin -Destination (Join-Path $OutDir "visioflow-toast.exe") -Force
 Copy-Item -Path "assets\default-rules.json" -Destination (Join-Path $OutDir "default-rules.json") -Force
-Copy-Item -Path "assets\VisiFlow-QR.ico" -Destination (Join-Path $OutDir "VisiFlow-QR.ico") -Force
+Copy-Item -Path "assets\logo v2.ico" -Destination (Join-Path $OutDir "logo v2.ico") -Force
 Copy-Item -Path "share\actions\*" -Destination (Join-Path $OutDir "share\actions") -Recurse -Force
 Copy-Item -Path "scripts\install-shortcuts.ps1" -Destination (Join-Path $OutDir "install-shortcuts.ps1") -Force
 Copy-Item -Path "scripts\bootstrap-portable.ps1" -Destination (Join-Path $OutDir "bootstrap-portable.ps1") -Force

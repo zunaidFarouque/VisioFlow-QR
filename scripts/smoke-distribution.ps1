@@ -81,7 +81,7 @@ if (Test-Path $toastBin) {
     Copy-Item -Path $toastBin -Destination (Join-Path $distRoot "visioflow-toast.exe")
 }
 Copy-Item -Path "assets\default-rules.json" -Destination (Join-Path $distRoot "default-rules.json")
-Copy-Item -Path "assets\VisiFlow-QR.ico" -Destination (Join-Path $distRoot "VisiFlow-QR.ico")
+Copy-Item -Path "assets\logo v2.ico" -Destination (Join-Path $distRoot "logo v2.ico")
 Copy-Item -Path "scripts\install-shortcuts.ps1" -Destination (Join-Path $distRoot "install-shortcuts.ps1")
 Copy-Item -Path $bootstrapPath -Destination (Join-Path $distRoot "bootstrap-portable.ps1")
 
@@ -108,7 +108,7 @@ try {
     }
     Assert-True (Test-Path (Join-Path $installRoot "share\default-rules.json")) "traditional install missing default rules"
     Assert-True (Test-Path (Join-Path $installRoot "models\detect.caffemodel")) "traditional install missing models"
-    Assert-True (Test-Path (Join-Path $installRoot "VisiFlow-QR.ico")) "traditional install missing VisiFlow-QR.ico"
+    Assert-True (Test-Path (Join-Path $installRoot "logo v2.ico")) "traditional install missing logo v2.ico"
 
     & $bootstrapPath `
         -DistRoot $distRoot `

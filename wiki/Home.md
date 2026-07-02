@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="https://raw.githubusercontent.com/zunaidFarouque/VisioFlow-QR/main/assets/VisiFlow-QR.ico" alt="VisioFlow" width="96">
+  <img src="https://raw.githubusercontent.com/zunaidFarouque/VisioFlow-QR/main/assets/logo%20v2.ico" alt="VisioFlow" width="96">
 </p>
 
 # VisioFlow
@@ -76,5 +76,5 @@ visioflow notify test
 ## Repository
 
 - **GitHub:** [zunaidFarouque/VisioFlow-QR](https://github.com/zunaidFarouque/VisioFlow-QR)
-- **Release:** [v0.1.4](https://github.com/zunaidFarouque/VisioFlow-QR/releases/tag/v0.1.4)
+- **Release:** [v0.1.5](https://github.com/zunaidFarouque/VisioFlow-QR/releases/tag/v0.1.5)
 - **License:** MIT

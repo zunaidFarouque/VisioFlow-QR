@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/VisiFlow-QR.ico" alt="VisioFlow" width="96">
+  <img src="assets/logo%20v2.ico" alt="VisioFlow" width="96">
 </p>
 
 # VisioFlow

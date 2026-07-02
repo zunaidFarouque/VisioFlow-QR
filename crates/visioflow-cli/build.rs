@@ -1,7 +1,7 @@
 #[cfg(target_os = "windows")]
 fn main() {
     let mut res = winres::WindowsResource::new();
-    res.set_icon("../../assets/VisiFlow-QR.ico");
+    res.set_icon("../../assets/logo v2.ico");
     res.compile().unwrap();
 }
 
