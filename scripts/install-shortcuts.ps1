@@ -57,16 +57,32 @@ function Resolve-IconLocation {
     return "$Bin,0"
 }
 
-function Write-Wrapper {
+function Escape-VbsLiteral {
+    param([string]$Value)
+    return $Value -replace '"', '""'
+}
+
+function Write-HiddenLauncher {
     param(
         [string]$Path,
         [string]$Bin,
         [string]$LaunchArgs
     )
 
+    $binLiteral = Escape-VbsLiteral -Value $Bin
+    $launchArgsLiteral = Escape-VbsLiteral -Value $LaunchArgs
     $body = @"
-@echo off
-"$Bin" $LaunchArgs %*
+Option Explicit
+Dim shell, command, i, arg
+Set shell = CreateObject("WScript.Shell")
+
+command = """" & "$binLiteral" & """ $launchArgsLiteral"
+For i = 0 To WScript.Arguments.Count - 1
+    arg = Replace(WScript.Arguments(i), """", """""")
+    command = command & " """ & arg & """"
+Next
+
+shell.Run command, 0, False
 "@
     Set-Content -Path $Path -Value $body -Encoding ASCII
 }
@@ -106,7 +122,10 @@ function Remove-LegacyShortcuts {
         Remove-Item (Join-Path $StartMenuFolder "$name.lnk") -Force -ErrorAction SilentlyContinue
     }
 
-    $legacyLaunchers = @("scan-auto.cmd", "scan-copy.cmd", "scan-plain.cmd")
+    $legacyLaunchers = @(
+        "scan-auto.cmd", "scan-copy.cmd", "scan-plain.cmd",
+        "scan-auto.vbs", "scan-copy.vbs", "scan-plain.vbs"
+    )
     $launcherRoot = Join-Path $env:APPDATA "VisioFlow\launchers"
     foreach ($file in $legacyLaunchers) {
         Remove-Item (Join-Path $launcherRoot $file) -Force -ErrorAction SilentlyContinue
@@ -156,11 +175,11 @@ $wrappers = @(
 )
 
 foreach ($entry in $wrappers) {
-    $wrapperPath = Join-Path $launcherRoot "$($entry.Name).cmd"
+    $wrapperPath = Join-Path $launcherRoot "$($entry.Name).vbs"
     if ((Test-Path $wrapperPath) -and -not $Force) {
         throw "Wrapper exists: $wrapperPath (rerun with -Force to overwrite)"
     }
-    Write-Wrapper -Path $wrapperPath -Bin $bin -LaunchArgs $entry.Args
+    Write-HiddenLauncher -Path $wrapperPath -Bin $bin -LaunchArgs $entry.Args
 
     $menuShortcut = Join-Path $startMenuFolder "$($entry.ShortcutName).lnk"
 
@@ -174,4 +193,4 @@ foreach ($entry in $wrappers) {
 Write-Host "Installed VisioFlow launchers in: $launcherRoot"
 Write-Host "Installed shortcuts in Start Menu\Programs\VisioFlow (no desktop shortcuts)"
 Write-Host "Shortcut icon: $iconLocation"
-Write-Host "Tip: map hotkeys in AHK/PowerToys to the .cmd launchers."
+Write-Host "Tip: map hotkeys in AHK/PowerToys to the .vbs launchers."

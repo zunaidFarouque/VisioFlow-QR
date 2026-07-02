@@ -118,7 +118,7 @@ try {
         -Force
 
     foreach ($name in @("camera-auto", "camera-copy", "snip-auto", "snip-copy")) {
-        Assert-True (Test-Path (Join-Path $appData "VisioFlow\launchers\$name.cmd")) "portable bootstrap missing launcher $name.cmd"
+        Assert-True (Test-Path (Join-Path $appData "VisioFlow\launchers\$name.vbs")) "portable bootstrap missing launcher $name.vbs"
     }
 
     $startMenuFolder = Join-Path $programs "VisioFlow"

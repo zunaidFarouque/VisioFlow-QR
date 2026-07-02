@@ -19,7 +19,7 @@ Bucket: [Zunaid-Scoop-Bucket](https://github.com/zunaidFarouque/Zunaid-Scoop-Buc
 
 `scoop install` runs bootstrap automatically — rules seed and sync to `%APPDATA%\visioflow\rules.json`. The release zip includes **`models/`** beside `visioflow.exe` for webcam (no extra download). Scoop sets `VISIOFLOW_MODELS_DIR` to `$dir\models`.
 
-**Start Menu:** four shortcuts under **Scoop Apps → VisioFlow** (Camera/Snip × auto/copy; no desktop shortcuts).
+**Start Menu:** four shortcuts under **Scoop Apps → VisioFlow** (Camera/Snip × auto/copy; no desktop shortcuts), launched via hidden wrappers so no `cmd` window appears.
 
 ```powershell
 scoop bucket add Zuanid-Scoop https://github.com/zunaidFarouque/Zunaid-Scoop-Bucket
@@ -32,7 +32,7 @@ scoop install Zuanid-Scoop/visioflow
 
 ## Option 2: Traditional machine-local install
 
-Copies binaries and `share/` to `%LOCALAPPDATA%\Programs\VisioFlow`, seeds `%APPDATA%\visioflow\rules.json`, and creates **Start Menu** shortcuts under `Programs\VisioFlow` (no desktop shortcuts).
+Copies binaries and `share/` to `%LOCALAPPDATA%\Programs\VisioFlow`, seeds `%APPDATA%\visioflow\rules.json`, and creates **Start Menu** shortcuts under `Programs\VisioFlow` (no desktop shortcuts) using hidden launchers so no `cmd` window appears.
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\scripts\install-traditional.ps1 -DistRoot .\dist\visioflow-win-x64 -Force

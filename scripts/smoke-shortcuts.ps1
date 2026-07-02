@@ -50,22 +50,23 @@ try {
         -Force
 
     foreach ($name in @("camera-auto", "camera-copy", "snip-auto", "snip-copy")) {
-        $cmdPath = Join-Path $launcherRoot "$name.cmd"
-        Assert-True (Test-Path $cmdPath) "missing launcher: $cmdPath"
-        $content = Get-Content -Path $cmdPath -Raw
-        Assert-True ($content -match [regex]::Escape($bin)) "launcher does not reference bin: $cmdPath"
-        Assert-True ($content -match "capture --source") "launcher missing capture args: $cmdPath"
+        $launcherPath = Join-Path $launcherRoot "$name.vbs"
+        Assert-True (Test-Path $launcherPath) "missing launcher: $launcherPath"
+        $content = Get-Content -Path $launcherPath -Raw
+        Assert-True ($content -match [regex]::Escape($bin)) "launcher does not reference bin: $launcherPath"
+        Assert-True ($content -match "capture --source") "launcher missing capture args: $launcherPath"
     }
 
-    $cameraAuto = Get-Content -Path (Join-Path $launcherRoot "camera-auto.cmd") -Raw
+    $cameraAuto = Get-Content -Path (Join-Path $launcherRoot "camera-auto.vbs") -Raw
     Assert-True ($cameraAuto -match "--source webcam") "camera-auto missing webcam source"
-    $snipAuto = Get-Content -Path (Join-Path $launcherRoot "snip-auto.cmd") -Raw
+    $snipAuto = Get-Content -Path (Join-Path $launcherRoot "snip-auto.vbs") -Raw
     Assert-True ($snipAuto -match "--source snip") "snip-auto missing snip source"
 
     $startMenuFolder = Join-Path $programs "VisioFlow"
     $sampleShortcut = Join-Path $startMenuFolder "VisioFlow QR Camera (auto).lnk"
     $shell = New-Object -ComObject WScript.Shell
     $lnk = $shell.CreateShortcut($sampleShortcut)
+    Assert-True ($lnk.TargetPath -match "\.vbs$") "shortcut should target hidden .vbs launcher: $($lnk.TargetPath)"
     Assert-True ($lnk.IconLocation) "shortcut missing IconLocation"
     Assert-True ($lnk.IconLocation -like "$bin*") "shortcut icon should reference visioflow.exe: $($lnk.IconLocation)"
 

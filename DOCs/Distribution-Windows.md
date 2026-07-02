@@ -57,7 +57,7 @@ cargo build --release -p visioflow-cli
 
 Scoop manifest path: `scripts/packaging/scoop/visioflow.json`
 
-`post_install` seeds rules and syncs to `%APPDATA%\visioflow\rules.json`. Start Menu shortcuts come from the manifest `shortcuts` field (Scoop Apps → VisioFlow; no desktop shortcuts). `post_install` also removes legacy desktop shortcuts from older releases. `uninstaller` removes legacy launchers; rules persist under `~/scoop/persist/visioflow/` unless `scoop uninstall -p`.
+`post_install` seeds rules and syncs to `%APPDATA%\visioflow\rules.json`. Start Menu shortcuts come from the manifest `shortcuts` field (Scoop Apps → VisioFlow; no desktop shortcuts) and launch through hidden VBS wrappers so no `cmd` window flashes. `post_install` also removes legacy desktop shortcuts from older releases. `uninstaller` removes legacy launchers; rules persist under `~/scoop/persist/visioflow/` unless `scoop uninstall -p`.
 
 ## Local validation before publishing
 

@@ -40,10 +40,14 @@ $shortcuts = @($manifest.shortcuts)
 Assert-True ($shortcuts.Count -eq 4) "scoop manifest: shortcuts should have 4 entries"
 foreach ($entry in $shortcuts) {
     Assert-True ($entry.Count -ge 4) "scoop manifest: shortcut missing icon path"
+    Assert-True ($entry[0] -eq "wscript.exe") "scoop manifest: shortcuts should use wscript.exe for hidden launch"
+    Assert-True ($entry[2] -match "\.vbs") "scoop manifest: shortcut args should point to .vbs launchers"
     Assert-True ($entry[3] -eq "logo v2.ico") "scoop manifest: shortcut icon should be logo v2.ico"
 }
 
 Assert-Contains $manifestRaw "logo v2.ico" "scoop manifest shortcuts icon"
+Assert-Contains $manifestRaw "camera-auto.vbs" "scoop manifest hidden launchers"
+Assert-Contains $manifestRaw "wscript.exe" "scoop manifest hidden launcher target"
 
 $postInstall = @($manifest.post_install)
 Assert-True ($postInstall.Count -ge 3) "scoop manifest: post_install should run bootstrap logic"
