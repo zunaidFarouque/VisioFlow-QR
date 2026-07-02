@@ -15,10 +15,10 @@
     "VISIOFLOW_MODELS_DIR": "$dir\\models"
   },
   "shortcuts": [
-    ["C:\\Windows\\System32\\wscript.exe", "VisioFlow\\VisioFlow QR Camera (auto)", "launchers\\camera-auto.vbs", "logo v2.ico"],
-    ["C:\\Windows\\System32\\wscript.exe", "VisioFlow\\VisioFlow QR Camera (copy)", "launchers\\camera-copy.vbs", "logo v2.ico"],
-    ["C:\\Windows\\System32\\wscript.exe", "VisioFlow\\VisioFlow QR Snip (auto)", "launchers\\snip-auto.vbs", "logo v2.ico"],
-    ["C:\\Windows\\System32\\wscript.exe", "VisioFlow\\VisioFlow QR Snip (copy)", "launchers\\snip-copy.vbs", "logo v2.ico"]
+    ["launchers\\camera-auto.vbs", "VisioFlow\\VisioFlow QR Camera (auto)", "", "logo v2.ico"],
+    ["launchers\\camera-copy.vbs", "VisioFlow\\VisioFlow QR Camera (copy)", "", "logo v2.ico"],
+    ["launchers\\snip-auto.vbs", "VisioFlow\\VisioFlow QR Snip (auto)", "", "logo v2.ico"],
+    ["launchers\\snip-copy.vbs", "VisioFlow\\VisioFlow QR Snip (copy)", "", "logo v2.ico"]
   ],
   "persist": "data",
   "post_install": [
