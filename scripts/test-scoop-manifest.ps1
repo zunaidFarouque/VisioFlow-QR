@@ -40,18 +40,24 @@ $shortcuts = @($manifest.shortcuts)
 Assert-True ($shortcuts.Count -eq 4) "scoop manifest: shortcuts should have 4 entries"
 foreach ($entry in $shortcuts) {
     Assert-True ($entry.Count -ge 4) "scoop manifest: shortcut missing icon path"
-    Assert-True ($entry[0] -eq "wscript.exe") "scoop manifest: shortcuts should use wscript.exe for hidden launch"
-    Assert-True ($entry[2] -match "\.vbs") "scoop manifest: shortcut args should point to .vbs launchers"
+    Assert-True ($entry[0] -eq 'C:\Windows\System32\wscript.exe') "scoop manifest: shortcuts should use System32 wscript.exe"
+    Assert-True ($entry[2].EndsWith('.vbs')) "scoop manifest: shortcut args should point to bundled .vbs launchers"
+    Assert-True ($entry[2].StartsWith('launchers\')) "scoop manifest: shortcut args should use launchers folder"
     Assert-True ($entry[3] -eq "logo v2.ico") "scoop manifest: shortcut icon should be logo v2.ico"
 }
 
 Assert-Contains $manifestRaw "logo v2.ico" "scoop manifest shortcuts icon"
-Assert-Contains $manifestRaw "camera-auto.vbs" "scoop manifest hidden launchers"
-Assert-Contains $manifestRaw "wscript.exe" "scoop manifest hidden launcher target"
+Assert-Contains $manifestRaw "launchers\\camera-auto.vbs" "scoop manifest bundled launchers"
+Assert-True (-not ($manifestRaw -match '@\"')) "scoop manifest post_install must not use here-strings"
 
 $postInstall = @($manifest.post_install)
 Assert-True ($postInstall.Count -ge 3) "scoop manifest: post_install should run bootstrap logic"
 Assert-True (-not ($manifestRaw -match "Run bootstrap once")) "scoop manifest: manual bootstrap message should be removed"
+try {
+    $null = [scriptblock]::Create(($postInstall -join "`r`n"))
+} catch {
+    throw "scoop manifest post_install script failed to compile: $($_.Exception.Message)"
+}
 
 $uninstaller = $manifest.uninstaller
 Assert-True ($uninstaller) "scoop manifest: uninstaller block missing"

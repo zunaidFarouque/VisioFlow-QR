@@ -84,6 +84,7 @@ Copy-Item -Path "assets\default-rules.json" -Destination (Join-Path $distRoot "d
 Copy-Item -Path "assets\logo v2.ico" -Destination (Join-Path $distRoot "logo v2.ico")
 Copy-Item -Path "scripts\install-shortcuts.ps1" -Destination (Join-Path $distRoot "install-shortcuts.ps1")
 Copy-Item -Path $bootstrapPath -Destination (Join-Path $distRoot "bootstrap-portable.ps1")
+& ".\scripts\generate-launchers.ps1" -OutDir $distRoot
 
 $modelsDir = Join-Path $distRoot "models"
 New-Item -ItemType Directory -Path $modelsDir -Force | Out-Null
@@ -109,6 +110,7 @@ try {
     Assert-True (Test-Path (Join-Path $installRoot "share\default-rules.json")) "traditional install missing default rules"
     Assert-True (Test-Path (Join-Path $installRoot "models\detect.caffemodel")) "traditional install missing models"
     Assert-True (Test-Path (Join-Path $installRoot "logo v2.ico")) "traditional install missing logo v2.ico"
+    Assert-True (Test-Path (Join-Path $distRoot "launchers\camera-auto.vbs")) "dist missing bundled camera-auto.vbs"
 
     & $bootstrapPath `
         -DistRoot $distRoot `
