@@ -11,6 +11,9 @@ pub enum VisioFlowError {
     #[error("decode failed: {0}")]
     Decode(String),
 
+    #[error("encode failed: {0}")]
+    Encode(String),
+
     #[error("no payloads found in image")]
     NoPayloads,
 

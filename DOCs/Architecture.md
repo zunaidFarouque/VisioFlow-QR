@@ -49,6 +49,18 @@ Implemented with `clap`:
 | Webcam | `--timeout`, preview position/scale, exposure bracket tuning, `--no-mirror` (mirrored default) |
 | Halts | `--select`, `--interactive` |
 
+### `encode` — QR generation
+
+| Area | Flags / behavior |
+|------|------------------|
+| Source | `--source clipboard` (v1) |
+| Deliver | `--deliver preview` (default), `preview-copy`, or `copy` |
+| Preview | Square window, 50–90% work-area height by QR density; non-resizable |
+| Shortcut files | `.url` / `.desktop` paths and Explorer CF_HDROP → extract `URL=` only |
+| Options | `--preview-position`, `--ecc`, `--output`, `--no-notify` |
+
+See [`Encode.md`](Encode.md).
+
 ### `rule` — automation manager
 
 `create`, `config`, `set-action`, `execute`, `list`, `delete`, `init-defaults` — see [`Rules-CLI.md`](Rules-CLI.md).

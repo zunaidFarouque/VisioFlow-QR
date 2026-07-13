@@ -1,12 +1,12 @@
 {
-  "version": "0.1.5",
+  "version": "0.1.6",
   "description": "Visual payload router for QR capture and automation",
   "homepage": "https://github.com/zunaidFarouque/VisioFlow-QR",
   "license": "MIT",
   "architecture": {
     "64bit": {
-      "url": "https://github.com/zunaidFarouque/VisioFlow-QR/releases/download/v0.1.5/visioflow-win-x64.zip",
-      "hash": "ba976636d7634ba1d7da4c5f2b710ecd285b40a7637c0d209b30aea2e713391a",
+      "url": "https://github.com/zunaidFarouque/VisioFlow-QR/releases/download/v0.1.6/visioflow-win-x64.zip",
+      "hash": "068ee04dac3c9493b9bfed4bf088fa4c044d026c5ae9fdc3653a33d0706cfd45",
       "extract_dir": "visioflow-win-x64"
     }
   },
@@ -18,7 +18,8 @@
     ["launchers\\camera-auto.vbs", "VisioFlow\\VisioFlow QR Camera (auto)", "", "logo v2.ico"],
     ["launchers\\camera-copy.vbs", "VisioFlow\\VisioFlow QR Camera (copy)", "", "logo v2.ico"],
     ["launchers\\snip-auto.vbs", "VisioFlow\\VisioFlow QR Snip (auto)", "", "logo v2.ico"],
-    ["launchers\\snip-copy.vbs", "VisioFlow\\VisioFlow QR Snip (copy)", "", "logo v2.ico"]
+    ["launchers\\snip-copy.vbs", "VisioFlow\\VisioFlow QR Snip (copy)", "", "logo v2.ico"],
+    ["launchers\\clipboard-qr.vbs", "VisioFlow\\VisioFlow Clipboard to QR", "", "logo v2.ico"]
   ],
   "persist": "data",
   "post_install": [
@@ -50,7 +51,7 @@
       "$desktop = [Environment]::GetFolderPath('Desktop')",
       "$programs = [Environment]::GetFolderPath('Programs')",
       "$startMenu = Join-Path $programs 'VisioFlow'",
-      "$names = @('VisioFlow QR Camera (auto)', 'VisioFlow QR Camera (copy)', 'VisioFlow QR Snip (auto)', 'VisioFlow QR Snip (copy)', 'VisioFlow Scan (Auto)', 'VisioFlow Scan (Copy)', 'VisioFlow Scan (Plain)')",
+      "$names = @('VisioFlow QR Camera (auto)', 'VisioFlow QR Camera (copy)', 'VisioFlow QR Snip (auto)', 'VisioFlow QR Snip (copy)', 'VisioFlow Clipboard to QR', 'VisioFlow Scan (Auto)', 'VisioFlow Scan (Copy)', 'VisioFlow Scan (Plain)')",
       "foreach ($n in $names) { Remove-Item (Join-Path $desktop \"$n.lnk\") -Force -ErrorAction SilentlyContinue; Remove-Item (Join-Path $startMenu \"$n.lnk\") -Force -ErrorAction SilentlyContinue }",
       "$launcherRoot = Join-Path $env:APPDATA 'VisioFlow\\launchers'",
       "if (Test-Path $launcherRoot) { Remove-Item $launcherRoot -Recurse -Force -ErrorAction SilentlyContinue }",

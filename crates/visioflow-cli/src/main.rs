@@ -1,6 +1,7 @@
 use std::path::PathBuf;
 
 use clap::{Parser, Subcommand, ValueEnum};
+use visioflow_cli::commands::encode::{run_encode, EncodeArgs, EncodeDeliver, EncodeEcc, EncodeSource};
 use visioflow_cli::commands::capture::{
     apply_capture_halts, apply_routing_after_halts, decide_ipc_routing, notify_routing_outcome,
     route_mode_from_trigger, run_capture, write_capture_output, CaptureAction, CaptureArgs,
@@ -187,6 +188,36 @@ enum Commands {
 
         #[command(subcommand)]
         command: DaemonCommands,
+    },
+
+    /// Generate QR codes from clipboard or other sources
+    Encode {
+        #[arg(long, value_enum)]
+        source: EncodeSource,
+
+        /// Preview window anchor position
+        #[arg(long, value_enum, default_value = "center")]
+        preview_position: PreviewPosition,
+
+        /// QR error correction level
+        #[arg(long, value_enum, default_value = "m")]
+        ecc: EncodeEcc,
+
+        /// Output delivery: preview only, preview + clipboard copy, or copy only
+        #[arg(long, value_enum, default_value = "preview")]
+        deliver: EncodeDeliver,
+
+        /// Disable desktop notification on success (copy deliver modes only)
+        #[arg(long)]
+        no_notify: bool,
+
+        /// Save the QR image to a PNG file
+        #[arg(long, value_name = "PATH")]
+        output: Option<PathBuf>,
+
+        /// Use this text instead of reading the clipboard (integration tests)
+        #[arg(long, hide = true)]
+        input_text: Option<String>,
     },
 }
 
@@ -682,6 +713,29 @@ fn run() -> visioflow_core::error::Result<()> {
                 )?;
             }
         }
+        Commands::Encode {
+            source,
+            preview_position,
+            ecc,
+            deliver,
+            no_notify,
+            output,
+            input_text,
+        } => {
+            let payload = run_encode(EncodeArgs {
+                source,
+                preview_position,
+                ecc,
+                deliver,
+                notify: !no_notify,
+                verbose: cli.verbose,
+                output,
+                input_text,
+            })?;
+            if !cli.silent {
+                println!("{payload}");
+            }
+        }
     }
 
     Ok(())
@@ -721,7 +775,7 @@ mod tests {
                 assert_eq!(decode_interval_ms, DEFAULT_DECODE_INTERVAL_MS);
                 assert!(matches!(exposure_bracket, ExposureBracketMode::Auto));
             }
-            Commands::Rule { .. } | Commands::Daemon { .. } | Commands::Notify { .. } => {}
+            Commands::Rule { .. } | Commands::Daemon { .. } | Commands::Notify { .. } | Commands::Encode { .. } => {}
         }
     }
 
@@ -743,7 +797,7 @@ mod tests {
             Commands::Capture { trigger, .. } => {
                 assert_eq!(trigger.as_deref(), Some("asset"));
             }
-            Commands::Rule { .. } | Commands::Daemon { .. } | Commands::Notify { .. } => {
+            Commands::Rule { .. } | Commands::Daemon { .. } | Commands::Notify { .. } | Commands::Encode { .. } => {
                 panic!("expected capture")
             }
         }
@@ -786,7 +840,7 @@ mod tests {
                 assert_eq!(exposure_flush_grabs, 2);
                 assert_eq!(decode_interval_ms, 200);
             }
-            Commands::Rule { .. } | Commands::Daemon { .. } | Commands::Notify { .. } => {}
+            Commands::Rule { .. } | Commands::Daemon { .. } | Commands::Notify { .. } | Commands::Encode { .. } => {}
         }
     }
 
@@ -813,7 +867,7 @@ mod tests {
                 assert!(select);
                 assert!(interactive);
             }
-            Commands::Rule { .. } | Commands::Daemon { .. } | Commands::Notify { .. } => {
+            Commands::Rule { .. } | Commands::Daemon { .. } | Commands::Notify { .. } | Commands::Encode { .. } => {
                 panic!("expected capture")
             }
         }
@@ -875,7 +929,7 @@ mod tests {
                 assert!(matches!(wifi_handoff, WifiHandoffMode::Print));
                 assert!(no_notify);
             }
-            Commands::Rule { .. } | Commands::Daemon { .. } | Commands::Notify { .. } => {
+            Commands::Rule { .. } | Commands::Daemon { .. } | Commands::Notify { .. } | Commands::Encode { .. } => {
                 panic!("expected capture")
             }
         }
@@ -888,7 +942,7 @@ mod tests {
 
         match cli.command {
             Commands::Capture { no_notify, .. } => assert!(!no_notify),
-            Commands::Rule { .. } | Commands::Daemon { .. } | Commands::Notify { .. } => {
+            Commands::Rule { .. } | Commands::Daemon { .. } | Commands::Notify { .. } | Commands::Encode { .. } => {
                 panic!("expected capture")
             }
         }
@@ -919,7 +973,7 @@ mod tests {
 
         match cli.command {
             Commands::Capture { no_mirror, .. } => assert!(!no_mirror),
-            Commands::Rule { .. } | Commands::Daemon { .. } | Commands::Notify { .. } => {
+            Commands::Rule { .. } | Commands::Daemon { .. } | Commands::Notify { .. } | Commands::Encode { .. } => {
                 panic!("expected capture")
             }
         }
@@ -940,7 +994,7 @@ mod tests {
 
         match cli.command {
             Commands::Capture { no_mirror, .. } => assert!(no_mirror),
-            Commands::Rule { .. } | Commands::Daemon { .. } | Commands::Notify { .. } => {
+            Commands::Rule { .. } | Commands::Daemon { .. } | Commands::Notify { .. } | Commands::Encode { .. } => {
                 panic!("expected capture")
             }
         }
@@ -981,7 +1035,7 @@ mod tests {
                 assert_eq!(title, "T");
                 assert_eq!(body, "B");
             }
-            Commands::Rule { .. } | Commands::Capture { .. } | Commands::Daemon { .. } => {
+            Commands::Rule { .. } | Commands::Capture { .. } | Commands::Daemon { .. } | Commands::Encode { .. } => {
                 panic!("expected notify")
             }
             Commands::Notify {
@@ -1010,6 +1064,34 @@ mod tests {
                     .contains("visioflow-toast-copy-1-0.txt"));
             }
             _ => panic!("expected notify copy"),
+        }
+    }
+
+    #[test]
+    fn encode_defaults_preview_deliver_mode() {
+        let cli = Cli::try_parse_from([
+            "visioflow",
+            "encode",
+            "--source",
+            "clipboard",
+            "--input-text",
+            "hello",
+            "--no-notify",
+        ])
+        .expect("cli should parse");
+
+        match cli.command {
+            Commands::Encode {
+                preview_position,
+                deliver,
+                no_notify,
+                ..
+            } => {
+                assert!(matches!(preview_position, PreviewPosition::Center));
+                assert!(matches!(deliver, EncodeDeliver::Preview));
+                assert!(no_notify);
+            }
+            _ => panic!("expected encode command"),
         }
     }
 

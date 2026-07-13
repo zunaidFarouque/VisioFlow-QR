@@ -16,7 +16,8 @@ $entries = @(
     @{ Name = "camera-auto"; Args = "capture --source webcam" },
     @{ Name = "camera-copy"; Args = "capture --source webcam --trigger copy" },
     @{ Name = "snip-auto"; Args = "capture --source snip" },
-    @{ Name = "snip-copy"; Args = "capture --source snip --trigger copy" }
+    @{ Name = "snip-copy"; Args = "capture --source snip --trigger copy" },
+    @{ Name = "clipboard-qr"; Args = "encode --source clipboard" }
 )
 
 foreach ($entry in $entries) {

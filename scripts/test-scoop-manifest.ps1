@@ -31,13 +31,13 @@ Assert-Contains $manifestRaw "pre_uninstall" "scoop manifest"
 Assert-Contains $manifestRaw "uninstaller" "scoop manifest"
 Assert-Contains $manifestRaw "shortcuts" "scoop manifest"
 Assert-Contains $manifestRaw "VisioFlow QR Camera (auto)" "scoop manifest shortcuts"
-Assert-Contains $manifestRaw "VisioFlow QR Snip (copy)" "scoop manifest shortcuts"
+Assert-Contains $manifestRaw "VisioFlow Clipboard to QR" "scoop manifest shortcuts"
 Assert-True (-not ($manifestRaw -match "install-shortcuts\.ps1")) "scoop manifest post_install should not call install-shortcuts.ps1"
 Assert-Contains $manifestRaw "VisioFlow Scan (Auto)" "scoop manifest legacy cleanup"
 Assert-Contains $manifestRaw "launchers" "scoop manifest legacy cleanup"
 
 $shortcuts = @($manifest.shortcuts)
-Assert-True ($shortcuts.Count -eq 4) "scoop manifest: shortcuts should have 4 entries"
+Assert-True ($shortcuts.Count -eq 5) "scoop manifest: shortcuts should have 5 entries"
 foreach ($entry in $shortcuts) {
     Assert-True ($entry.Count -ge 4) "scoop manifest: shortcut missing icon path"
     Assert-True ($entry[0].EndsWith('.vbs')) "scoop manifest: shortcuts should target bundled .vbs launchers"

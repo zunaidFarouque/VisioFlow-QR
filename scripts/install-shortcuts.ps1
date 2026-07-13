@@ -171,6 +171,12 @@ $wrappers = @(
         Args = "capture --source snip --trigger copy"
         ShortcutName = "VisioFlow QR Snip (copy)"
         Description = "Scan QR via screen snip and copy payload only"
+    },
+    @{
+        Name = "clipboard-qr"
+        Args = "encode --source clipboard"
+        ShortcutName = "VisioFlow Clipboard to QR"
+        Description = "Generate QR code from clipboard text or URL shortcuts"
     }
 )
 

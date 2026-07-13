@@ -49,18 +49,21 @@ try {
         -StartMenuProgramsDir $programs `
         -Force
 
-    foreach ($name in @("camera-auto", "camera-copy", "snip-auto", "snip-copy")) {
+    foreach ($name in @("camera-auto", "camera-copy", "snip-auto", "snip-copy", "clipboard-qr")) {
         $launcherPath = Join-Path $launcherRoot "$name.vbs"
         Assert-True (Test-Path $launcherPath) "missing launcher: $launcherPath"
         $content = Get-Content -Path $launcherPath -Raw
         Assert-True ($content -match [regex]::Escape($bin)) "launcher does not reference bin: $launcherPath"
-        Assert-True ($content -match "capture --source") "launcher missing capture args: $launcherPath"
+        Assert-True ($content -match "capture --source|encode --source") "launcher missing capture/encode args: $launcherPath"
     }
 
     $cameraAuto = Get-Content -Path (Join-Path $launcherRoot "camera-auto.vbs") -Raw
     Assert-True ($cameraAuto -match "--source webcam") "camera-auto missing webcam source"
     $snipAuto = Get-Content -Path (Join-Path $launcherRoot "snip-auto.vbs") -Raw
     Assert-True ($snipAuto -match "--source snip") "snip-auto missing snip source"
+
+    $clipboardQr = Get-Content -Path (Join-Path $launcherRoot "clipboard-qr.vbs") -Raw
+    Assert-True ($clipboardQr -match "encode --source clipboard") "clipboard-qr missing encode args"
 
     $startMenuFolder = Join-Path $programs "VisioFlow"
     $sampleShortcut = Join-Path $startMenuFolder "VisioFlow QR Camera (auto).lnk"
@@ -74,7 +77,8 @@ try {
         "VisioFlow QR Camera (auto).lnk",
         "VisioFlow QR Camera (copy).lnk",
         "VisioFlow QR Snip (auto).lnk",
-        "VisioFlow QR Snip (copy).lnk"
+        "VisioFlow QR Snip (copy).lnk",
+        "VisioFlow Clipboard to QR.lnk"
     )) {
         Assert-True (-not (Test-Path (Join-Path $desktop $shortcut))) "desktop shortcut should not exist: $shortcut"
         Assert-True (Test-Path (Join-Path $startMenuFolder $shortcut)) "missing start menu shortcut: $shortcut"

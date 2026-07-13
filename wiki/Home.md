@@ -76,5 +76,5 @@ visioflow notify test
 ## Repository
 
 - **GitHub:** [zunaidFarouque/VisioFlow-QR](https://github.com/zunaidFarouque/VisioFlow-QR)
-- **Release:** [v0.1.5](https://github.com/zunaidFarouque/VisioFlow-QR/releases/tag/v0.1.5)
+- **Release:** [v0.1.6](https://github.com/zunaidFarouque/VisioFlow-QR/releases/tag/v0.1.6)
 - **License:** MIT

@@ -23,6 +23,7 @@ macOS is out of scope.
 ## Features
 
 - **Screen snip** and **webcam** QR decode (OpenCV + WeChat CNN on Windows full builds)
+- **Clipboard to QR** — generate QR from clipboard or `.url` shortcuts; square preview window (default) or copy modes
 - **Auto-routing** — stock rules match URLs, WiFi, mailto, tel, geo, vCard, MATMSG, clipboard prefixes, and more
 - **Rule engine** — regex capture groups, native protocol parsers (`QR_NATIVE_*`), child-process exec scripts
 - **Windows toasts** — routing feedback on by default; optional **Copy** button via `visioflow-toast.exe`
@@ -58,6 +59,11 @@ visioflow capture --source snip
 # Webcam (full build; source dev-env first)
 . .\scripts\dev-env.ps1
 visioflow capture --source webcam --timeout 30
+```
+
+```powershell
+# Clipboard to QR — square preview window (default)
+visioflow encode --source clipboard
 ```
 
 ### Build from source

@@ -119,7 +119,7 @@ try {
         -AppDataDir $appData `
         -Force
 
-    foreach ($name in @("camera-auto", "camera-copy", "snip-auto", "snip-copy")) {
+    foreach ($name in @("camera-auto", "camera-copy", "snip-auto", "snip-copy", "clipboard-qr")) {
         Assert-True (Test-Path (Join-Path $appData "VisioFlow\launchers\$name.vbs")) "portable bootstrap missing launcher $name.vbs"
     }
 
