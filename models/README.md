@@ -14,5 +14,6 @@ You can source these from OpenCV contrib's `wechat_qrcode` model set, or run:
 
 Runtime model resolution order:
 
-1. `VISIOFLOW_MODELS_DIR` environment variable
-2. A `models` directory found by walking up from the executable path
+1. `VISIOFLOW_MODELS_DIR` environment variable (directory must exist if set)
+2. `models/` under the current working directory
+3. `models/` beside `visioflow.exe` (walks executable ancestors)

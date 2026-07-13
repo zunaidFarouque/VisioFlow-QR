@@ -74,9 +74,11 @@ Clicking Copy:
 On first toast send, VisioFlow registers:
 
 - `visioflow:` protocol handler
-- Toast activator CLSID on the Start Menu shortcut
+- Toast activator CLSID on the Start Menu **registration** shortcut
 
-AppUserModelID: `VisioFlow.VisioFlowQR` (Start Menu shortcut at `%APPDATA%\Microsoft\Windows\Start Menu\Programs\VisioFlow\VisioFlow.lnk`).
+AppUserModelID: `VisioFlow.VisioFlowQR`.
+
+That registration lives on **`VisioFlow.lnk`** at `%APPDATA%\Microsoft\Windows\Start Menu\Programs\VisioFlow\VisioFlow.lnk`. It is **not** one of the five user launchers (Camera/Snip × auto/copy, Clipboard to QR). Scoop uninstall leaves `VisioFlow.lnk` and the protocol handler in place by design so toast Copy keeps working after upgrades.
 
 Hidden CLI entry (used by protocol activation):
 
@@ -103,7 +105,7 @@ visioflow notify copy --from-toast <path>
 
 ### Notifications in shortcuts
 
-Default launchers from `install-shortcuts.ps1` use auto-route capture **with** toasts. Add `--no-notify` to launcher `.cmd` files if you prefer silent desktop feedback.
+Default **`.vbs`** launchers from `install-shortcuts.ps1` (and Scoop’s bundled `launchers\*.vbs`) use auto-route capture **with** toasts. To prefer silent desktop feedback, edit the matching `.vbs` (or the Start Menu `.lnk` target args) and add `--no-notify` to the `visioflow` command line.
 
 ---
 

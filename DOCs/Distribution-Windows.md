@@ -14,9 +14,10 @@ Release zip root (`visioflow-win-x64/`) should contain:
 - `visioflow.exe` — main CLI (webcam capture when built with default features)
 - `visioflow-toast.exe` — toast activation helper for notification copy actions
 - `models/` — WeChat CNN files (`detect.*`, `sr.*`) for webcam decode
+- `launchers/*.vbs` — five hidden launchers (`camera-auto`, `camera-copy`, `snip-auto`, `snip-copy`, `clipboard-qr`) for Scoop / Start Menu (no console flash)
 - `logo v2.ico` — app icon (embedded in exes; used by Start Menu shortcuts)
 - `default-rules.json`
-- `install-shortcuts.ps1`
+- `install-shortcuts.ps1` — writes Start Menu `.lnk` files targeting `.vbs` launchers (traditional/portable/dev)
 - `bootstrap-portable.ps1`
 - `install-traditional.ps1`
 - `share/actions/*.ps1`
@@ -57,7 +58,7 @@ cargo build --release -p visioflow-cli
 
 Scoop manifest path: `scripts/packaging/scoop/visioflow.json`
 
-`post_install` seeds rules and syncs to `%APPDATA%\visioflow\rules.json`. Start Menu shortcuts come from the manifest `shortcuts` field (Scoop Apps → VisioFlow; no desktop shortcuts) and launch through hidden VBS wrappers so no `cmd` window flashes. `post_install` also removes legacy desktop shortcuts from older releases. `uninstaller` removes legacy launchers; rules persist under `~/scoop/persist/visioflow/` unless `scoop uninstall -p`.
+`post_install` seeds rules and syncs to `%APPDATA%\visioflow\rules.json`. Start Menu shortcuts come from the manifest `shortcuts` field (Scoop Apps → VisioFlow; no desktop shortcuts) and target bundled **`launchers\*.vbs`** so no console window flashes. `post_install` also removes legacy **desktop** shortcuts and old launcher names (`.cmd` / `scan-*`) from older releases. `uninstaller` removes legacy `%APPDATA%\VisioFlow\launchers` entries; it does **not** remove the toast registration shortcut (`VisioFlow.lnk`) or the `visioflow:` protocol handler. Rules persist under `~/scoop/persist/visioflow/` unless `scoop uninstall -p`.
 
 ## Local validation before publishing
 

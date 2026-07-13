@@ -40,7 +40,7 @@ visioflow capture --source <snip|webcam> [options]
 
 | Flag | Default | Description |
 |------|---------|-------------|
-| `--filter` | `otsu` | `otsu` \| `median` — binarization pipeline |
+| `--filter` | `otsu` | `otsu` \| `median` — snip/static optical pipeline only (webcam uses WeChat CNN) |
 | `--action` | — | `stdout` \| `copy` — bypass routing (scripting) |
 
 ### Webcam only
@@ -53,7 +53,7 @@ visioflow capture --source <snip|webcam> [options]
 | `--exposure-step-ms` | `100` | Hold time per exposure bracket step |
 | `--exposure-flush-grabs` | `2` | Frames to discard after exposure change |
 | `--decode-interval-ms` | `100` | Interval between QR decode attempts |
-| `--exposure-bracket` | `auto` | `auto` \| `on` \| `off` |
+| `--exposure-bracket` | `auto` | `auto` (probe then enable/disable), `on` (always), `off` (never) |
 | `--no-mirror` | off | Disable horizontal mirroring (mirrored by default) |
 
 ### Routing
@@ -75,6 +75,36 @@ visioflow capture --source <snip|webcam> [options]
 | `--interactive` | Confirm payload on stdin before routing |
 
 See [[Capture]] for behavior details.
+
+---
+
+## encode
+
+Generate a QR image from clipboard content (Clipboard to QR). Inverse of `capture`.
+
+```text
+visioflow encode --source clipboard [options]
+```
+
+### Required
+
+| Flag | Values | Description |
+|------|--------|-------------|
+| `--source` | `clipboard` | Input source (only value in v0.1.6) |
+
+### Options
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--deliver` | `preview` | `preview` — square preview only; `preview-copy` — preview + copy QR image; `copy` — copy image, no window |
+| `--preview-position` | `center` | Same anchors as capture (`top-left` … `bottom-right`) |
+| `--ecc` | `m` | Error correction: `l`, `m`, `q`, `h` |
+| `--output <PATH>` | — | Save QR PNG alongside deliver action |
+| `--no-notify` | off | Suppress toast (copy deliver modes only) |
+
+Preview is square, non-resizable, auto-sized ~50–90% of work-area height by QR density. Start Menu: **VisioFlow Clipboard to QR**.
+
+See [[Encode]] for normalization (`.url` / `.desktop` / CF_HDROP) and examples.
 
 ---
 

@@ -20,9 +20,11 @@ Release zip root (`visioflow-win-x64/`) contains:
 |------|---------|
 | `visioflow.exe` | Main CLI (webcam when built with default features) |
 | `visioflow-toast.exe` | Toast activation helper for notification Copy button |
+| `models/` | WeChat CNN files (`detect.*`, `sr.*`) for webcam decode |
+| `launchers/*.vbs` | Five hidden launchers (`camera-auto`, `camera-copy`, `snip-auto`, `snip-copy`, `clipboard-qr`) |
 | `logo v2.ico` | App icon (embedded in exes; Scoop/traditional shortcuts) |
 | `default-rules.json` | Stock rule pack |
-| `install-shortcuts.ps1` | Start Menu shortcuts + `.cmd` launchers (traditional/portable) |
+| `install-shortcuts.ps1` | Start Menu shortcuts targeting `.vbs` launchers (traditional/portable) |
 | `bootstrap-portable.ps1` | Portable install bootstrap |
 | `install-traditional.ps1` | Machine-local install script |
 | `share/actions/*.ps1` | Platform action scripts |
@@ -69,7 +71,7 @@ cargo build --release -p visioflow-cli
 
 Scoop manifest path: `scripts/packaging/scoop/visioflow.json`
 
-`post_install` seeds rules; Start Menu shortcuts come from manifest `shortcuts` (Scoop Apps → VisioFlow). `uninstaller` cleans legacy launchers; rules persist unless `scoop uninstall -p`.
+`post_install` seeds rules; Start Menu shortcuts target bundled **`launchers\*.vbs`** (Scoop Apps → VisioFlow; five entries including Clipboard to QR). Legacy desktop shortcuts and old `.cmd` / `scan-*` launcher names are removed on upgrade. `uninstaller` cleans legacy `%APPDATA%\VisioFlow\launchers` but leaves toast `VisioFlow.lnk` and the `visioflow:` protocol handler. Rules persist unless `scoop uninstall -p`.
 
 Current release URL:
 
@@ -94,22 +96,29 @@ If all pass, the distribution and install scripts are in a releasable state.
 
 ## Scoop manifest summary
 
+Manifest `shortcuts` point at bundled VBS (not `visioflow.exe` args directly):
+
 ```json
 {
   "version": "0.1.6",
+  "env_set": { "VISIOFLOW_MODELS_DIR": "$dir\\models" },
   "shortcuts": [
-    ["visioflow.exe", "VisioFlow\\\\VisioFlow QR Camera (auto)", "capture --source webcam"],
-    ["visioflow.exe", "VisioFlow\\\\VisioFlow QR Snip (copy)", "capture --source snip --trigger copy"]
+    ["launchers\\camera-auto.vbs", "VisioFlow\\VisioFlow QR Camera (auto)", "", "logo v2.ico"],
+    ["launchers\\camera-copy.vbs", "VisioFlow\\VisioFlow QR Camera (copy)", "", "logo v2.ico"],
+    ["launchers\\snip-auto.vbs", "VisioFlow\\VisioFlow QR Snip (auto)", "", "logo v2.ico"],
+    ["launchers\\snip-copy.vbs", "VisioFlow\\VisioFlow QR Snip (copy)", "", "logo v2.ico"],
+    ["launchers\\clipboard-qr.vbs", "VisioFlow\\VisioFlow Clipboard to QR", "", "logo v2.ico"]
   ],
   "architecture": {
     "64bit": {
       "url": "https://github.com/zunaidFarouque/VisioFlow-QR/releases/download/v0.1.6/visioflow-win-x64.zip",
-      "hash": "sha256:fbbb9ba52b3de1986a03672dd1344912d4a390b2d6542596d2ef1c133cb78e22",
       "extract_dir": "visioflow-win-x64"
     }
   }
 }
 ```
+
+(Hash omitted — copy the SHA256 from `build-release.ps1` into the real manifest.)
 
 ---
 

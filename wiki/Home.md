@@ -4,7 +4,7 @@
 
 # VisioFlow
 
-**Optical automation engine** — capture QR payloads from your screen or webcam, route them through rules, and trigger desktop actions (open URLs, WiFi handoff, run scripts, copy to clipboard).
+**Optical automation engine** — capture QR payloads from your screen or webcam, route them through rules, and trigger desktop actions (open URLs, WiFi handoff, run scripts, copy to clipboard). Or go the other way: encode clipboard text into a QR for phone handoff.
 
 VisioFlow is a **visual payload router**, not just a QR scanner. Scan once; the right action runs automatically.
 
@@ -20,6 +20,7 @@ macOS is out of scope.
 ## Features
 
 - **Screen snip** and **webcam** QR decode (OpenCV + WeChat CNN on Windows full builds)
+- **Clipboard to QR** — generate QR from clipboard or `.url` shortcuts; square preview window (default) or copy modes
 - **Auto-routing** — stock rules match URLs, WiFi, mailto, tel, geo, vCard, MATMSG, clipboard prefixes, and more
 - **Rule engine** — regex capture groups, native protocol parsers (`QR_NATIVE_*`), child-process exec scripts
 - **Windows toasts** — routing feedback on by default; optional **Copy** button via `visioflow-toast.exe`
@@ -43,6 +44,7 @@ macOS is out of scope.
 | Page | Topic |
 |------|-------|
 | [[Capture]] | Snip/webcam, flags, mirroring, halts, `--no-notify` |
+| [[Encode]] | Clipboard to QR, deliver modes, `.url` extraction |
 | [[Routing-and-Auto-Route]] | Auto-route, builtins, mismatch copy fallback |
 | [[Default-Rules]] | Stock rule pack table and examples |
 | [[Custom-Rules]] | Rule CRUD, regex, captures, priority |
@@ -66,6 +68,9 @@ visioflow rule init-defaults
 
 # Daily use: snip and auto-route
 visioflow capture --source snip
+
+# Clipboard to QR (square preview)
+visioflow encode --source clipboard
 
 # Smoke test notifications
 visioflow notify test

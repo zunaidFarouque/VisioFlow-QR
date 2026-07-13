@@ -2,7 +2,7 @@
 
 ## 1. Project overview
 
-VisioFlow is an optical automation engine and **visual payload router**. It captures QR payloads via webcam or screen snip, parses them, maps data to ephemeral environment variables, and triggers native OS actions.
+VisioFlow is an optical automation engine and **visual payload router**. It captures QR payloads via webcam or screen snip, parses them, maps data to ephemeral environment variables, and triggers native OS actions. The inverse path (`encode`) builds a QR image from clipboard text or internet-shortcut files.
 
 - **User docs:** [`DOCs/README.md`](README.md) — topic guides
 - **Routing:** [`Routing-And-Default-Rules.md`](Routing-And-Default-Rules.md) — **implemented** (auto-route, builtins, default pack, copy fallback, Windows toasts)
@@ -42,22 +42,24 @@ Implemented with `clap`:
 
 | Area | Flags / behavior |
 |------|------------------|
-| Source | `--source snip\|webcam`, `--filter otsu\|median`, `--action stdout\|copy` |
+| Source | `--source snip\|webcam`, `--action stdout\|copy`; `--filter otsu\|median` (**snip/static only** — webcam uses WeChat CNN) |
 | Routing | Omit `--trigger` → auto-route; `--except`, `--only`, `--on-mismatch` |
 | WiFi | `--wifi-handoff open-settings\|print` (default: Settings handoff) |
 | Feedback | Toasts **on** by default; `--no-notify` |
 | Webcam | `--timeout`, preview position/scale, exposure bracket tuning, `--no-mirror` (mirrored default) |
 | Halts | `--select`, `--interactive` |
 
-### `encode` — QR generation
+### `encode` — QR generation (Clipboard to QR)
 
 | Area | Flags / behavior |
 |------|------------------|
-| Source | `--source clipboard` (v1) |
+| Source | `--source clipboard` (v0.1.6) |
 | Deliver | `--deliver preview` (default), `preview-copy`, or `copy` |
-| Preview | Square window, 50–90% work-area height by QR density; non-resizable |
-| Shortcut files | `.url` / `.desktop` paths and Explorer CF_HDROP → extract `URL=` only |
+| Preview | Square, non-resizable; ~50–90% work-area height by QR density (DPI-aware); default position `center` |
+| Shortcut files | `.url` / `.desktop` path text or Explorer CF_HDROP → extract `URL=` only |
 | Options | `--preview-position`, `--ecc`, `--output`, `--no-notify` |
+| Feedback | Toast only for copy deliver modes (unless `--no-notify`); stdout prints normalized payload |
+| Shortcut | Start Menu **VisioFlow Clipboard to QR** → `encode --source clipboard` |
 
 See [`Encode.md`](Encode.md).
 
@@ -108,4 +110,4 @@ Zero-bloat; `#[cfg(target_os = …)]` for platform branches.
 | [`ENGINE_RULES.md`](ENGINE_RULES.md) | Variable namespaces, optical pipeline notes |
 | [`Handoff-Router-Phase.md`](Handoff-Router-Phase.md) | Feature status table |
 | [`IPC_PROTOCOL.md`](IPC_PROTOCOL.md) | NDJSON wire format |
-| [`PLATFORM_CI.md`](PLATFORM_CI.md) | CI matrix and conventions |
+| [`PLATFORM_CI.md`](PLATFORM_CI.md) | CI: Windows router-only; Linux deferred |

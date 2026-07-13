@@ -1,6 +1,6 @@
 # Getting Started
 
-VisioFlow captures QR payloads from the screen or webcam, matches them against routing rules, and runs the appropriate desktop action. This guide covers install, first scan, and optional shortcuts on **Windows**.
+VisioFlow captures QR payloads from the screen or webcam, matches them against routing rules, and runs the appropriate desktop action. It can also encode clipboard text into a QR (**Clipboard to QR**). This guide covers install, first scan, encode, and optional shortcuts on **Windows**.
 
 For Linux router-only usage, skip webcam sections and build with `--no-default-features`.
 
@@ -30,11 +30,11 @@ scoop install Zuanid-Scoop/visioflow
 
 Webcam works out of the box: release zips bundle `models/` beside `visioflow.exe`. Scoop sets `VISIOFLOW_MODELS_DIR` to `$dir\models`.
 
-**Start Menu:** four shortcuts under **Scoop Apps → VisioFlow** (no desktop shortcuts): Camera/Snip × auto/copy.
+**Start Menu:** five shortcuts under **Scoop Apps → VisioFlow** (no desktop shortcuts): Camera/Snip × auto/copy, plus **Clipboard to QR**. Each shortcut targets a hidden **`.vbs`** launcher under `$dir\launchers\` (no console flash).
 
 ### 2. Traditional machine-local install
 
-Copies binaries and `share/` to `%LOCALAPPDATA%\Programs\VisioFlow`, seeds `%APPDATA%\visioflow\rules.json`, and creates **Start Menu** shortcuts under `Programs\VisioFlow` (no desktop shortcuts).
+Copies binaries and `share/` to `%LOCALAPPDATA%\Programs\VisioFlow`, seeds `%APPDATA%\visioflow\rules.json`, and creates **Start Menu** shortcuts under `Programs\VisioFlow` (no desktop shortcuts). Shortcuts target hidden **`.vbs`** launchers under `%APPDATA%\VisioFlow\launchers\`.
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\scripts\install-traditional.ps1 -DistRoot .\dist\visioflow-win-x64 -Force
@@ -119,13 +119,26 @@ visioflow capture --source webcam --timeout 30
 
 Preview is **mirrored by default** (selfie-style). Use `--no-mirror` for raw camera orientation. Details: [Capture.md](Capture.md).
 
+### 5. Clipboard to QR (`encode`)
+
+```powershell
+# Copy text or a URL (or a .url shortcut file), then:
+visioflow encode --source clipboard
+```
+
+Default `--deliver preview` opens a square, non-resizable QR preview (Escape to dismiss). Other modes: `--deliver preview-copy` or `copy`. Details: [Encode.md](Encode.md).
+
+Start Menu: **VisioFlow Clipboard to QR**.
+
 ---
 
 ## Shortcuts (Windows)
 
-**Scoop:** Start Menu shortcuts are created automatically under **Scoop Apps → VisioFlow** (four entries — no desktop shortcuts).
+Launchers are **`.vbs`** scripts (run via `wscript`, window style hidden) so Start Menu / hotkey launches do not flash a console. Start Menu `.lnk` files point at those VBS files — not at `visioflow.exe` directly.
 
-**Traditional / portable / dev:** run `install-shortcuts.ps1` to create Start Menu shortcuts and `.cmd` launchers:
+**Scoop:** five Start Menu entries under **Scoop Apps → VisioFlow** (no desktop shortcuts). Targets are bundled `$dir\launchers\*.vbs`.
+
+**Traditional / portable / dev:** run `install-shortcuts.ps1` to create Start Menu shortcuts and launchers:
 
 ```powershell
 .\scripts\install-shortcuts.ps1
@@ -135,14 +148,17 @@ Creates under `%APPDATA%\VisioFlow\launchers\`:
 
 | Launcher | Command |
 |----------|---------|
-| `camera-auto.cmd` | `capture --source webcam` (auto-route) |
-| `camera-copy.cmd` | `capture --source webcam --trigger copy` |
-| `snip-auto.cmd` | `capture --source snip` (auto-route) |
-| `snip-copy.cmd` | `capture --source snip --trigger copy` |
+| `camera-auto.vbs` | `capture --source webcam` (auto-route) |
+| `camera-copy.vbs` | `capture --source webcam --trigger copy` |
+| `snip-auto.vbs` | `capture --source snip` (auto-route) |
+| `snip-copy.vbs` | `capture --source snip --trigger copy` |
+| `clipboard-qr.vbs` | `encode --source clipboard` (preview) |
 
-Start Menu shortcuts live in `%APPDATA%\Microsoft\Windows\Start Menu\Programs\VisioFlow\`.
+Start Menu shortcuts live in `%APPDATA%\Microsoft\Windows\Start Menu\Programs\VisioFlow\` (including **VisioFlow Clipboard to QR**).
 
-Bind hotkeys in AutoHotkey or PowerToys to the `.cmd` launchers.
+A separate registration shortcut **`VisioFlow.lnk`** (same folder) may appear after toast use — that is for AppUserModelID / toast Copy activation, not a user launcher. See [Notifications-Windows.md](Notifications-Windows.md).
+
+Bind hotkeys in AutoHotkey or PowerToys to the **`.vbs`** launchers.
 
 ```powershell
 .\scripts\install-shortcuts.ps1 -BinPath .\target\release\visioflow.exe -Force
@@ -180,6 +196,7 @@ cargo build --release -p visioflow-cli
 | Topic | Document |
 |-------|----------|
 | All capture flags | [Capture.md](Capture.md) |
+| Clipboard to QR | [Encode.md](Encode.md) |
 | Auto-routing and stock rules | [Routing-And-Default-Rules.md](Routing-And-Default-Rules.md) |
 | Custom rules | [Rules-CLI.md](Rules-CLI.md) |
 | Windows toasts | [Notifications-Windows.md](Notifications-Windows.md) |

@@ -19,20 +19,20 @@ Bucket: [Zunaid-Scoop-Bucket](https://github.com/zunaidFarouque/Zunaid-Scoop-Buc
 
 `scoop install` runs bootstrap automatically — rules seed and sync to `%APPDATA%\visioflow\rules.json`. The release zip includes **`models/`** beside `visioflow.exe` for webcam (no extra download). Scoop sets `VISIOFLOW_MODELS_DIR` to `$dir\models`.
 
-**Start Menu:** four shortcuts under **Scoop Apps → VisioFlow** (Camera/Snip × auto/copy; no desktop shortcuts), launched via hidden wrappers so no `cmd` window appears.
+**Start Menu:** five shortcuts under **Scoop Apps → VisioFlow** (Camera/Snip × auto/copy, plus **Clipboard to QR**; no desktop shortcuts). Each `.lnk` targets a bundled **`.vbs`** launcher under `$dir\launchers\` (hidden via `wscript` — no console flash). Local Scoop bucket name: **`Zuanid-Scoop`** (easy to mistype; repo is `Zunaid-Scoop-Bucket`).
 
 ```powershell
 scoop bucket add Zuanid-Scoop https://github.com/zunaidFarouque/Zunaid-Scoop-Bucket
 scoop install Zuanid-Scoop/visioflow
 ```
 
-**Uninstall:** Scoop removes manifest shortcuts automatically. Legacy launchers under `%APPDATA%\VisioFlow\launchers` are cleaned by the custom uninstaller. Rules stay in Scoop persist unless you run `scoop uninstall -p visioflow`. The `visioflow:` toast protocol registry in HKCU is left in place (refreshed on the next `visioflow notify test`).
+**Uninstall:** Scoop removes manifest shortcuts automatically. Legacy launchers under `%APPDATA%\VisioFlow\launchers` are cleaned by the custom uninstaller. Rules stay in Scoop persist unless you run `scoop uninstall -p visioflow`. The toast registration shortcut (`VisioFlow.lnk`) and `visioflow:` protocol handler in HKCU are left in place by design (refreshed on the next `visioflow notify test`).
 
 ---
 
 ## Option 2: Traditional machine-local install
 
-Copies binaries and `share/` to `%LOCALAPPDATA%\Programs\VisioFlow`, seeds `%APPDATA%\visioflow\rules.json`, and creates **Start Menu** shortcuts under `Programs\VisioFlow` (no desktop shortcuts) using hidden launchers so no `cmd` window appears.
+Copies binaries and `share/` to `%LOCALAPPDATA%\Programs\VisioFlow`, seeds `%APPDATA%\visioflow\rules.json`, and creates **Start Menu** shortcuts under `Programs\VisioFlow` (no desktop shortcuts). Shortcuts target hidden **`.vbs`** launchers under `%APPDATA%\VisioFlow\launchers\`.
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\scripts\install-traditional.ps1 -DistRoot .\dist\visioflow-win-x64 -Force

@@ -7,7 +7,7 @@
 [![Build](https://github.com/zunaidFarouque/VisioFlow-QR/actions/workflows/build.yml/badge.svg)](https://github.com/zunaidFarouque/VisioFlow-QR/actions/workflows/build.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://github.com/zunaidFarouque/VisioFlow-QR/blob/main/Cargo.toml)
 
-**Optical automation engine** — capture QR payloads from your screen or webcam, route them through rules, and trigger desktop actions (open URLs, WiFi handoff, run scripts, copy to clipboard).
+**Optical automation engine** — capture QR payloads from your screen or webcam, route them through rules, and trigger desktop actions (open URLs, WiFi handoff, run scripts, copy to clipboard). Or go the other way: encode clipboard text into a QR for phone handoff.
 
 VisioFlow is a **visual payload router**, not just a QR scanner. Scan once; the right action runs automatically.
 
@@ -87,8 +87,9 @@ Full docs live in **[`DOCs/`](DOCs/README.md)**:
 
 | Guide | Topic |
 |-------|--------|
-| [Getting Started](DOCs/Getting-Started.md) | Install, first scan, shortcuts |
+| [Getting Started](DOCs/Getting-Started.md) | Install, first scan, encode, shortcuts |
 | [Capture](DOCs/Capture.md) | Snip/webcam, flags, mirroring, halts |
+| [Encode](DOCs/Encode.md) | Clipboard to QR, deliver modes, `.url` extraction |
 | [Routing & Default Rules](DOCs/Routing-And-Default-Rules.md) | Auto-route, builtins, stock rules |
 | [Rules CLI](DOCs/Rules-CLI.md) | Rule CRUD, `init-defaults`, execute |
 | [Notifications (Windows)](DOCs/Notifications-Windows.md) | Toasts, Copy button, troubleshooting |

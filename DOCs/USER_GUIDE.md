@@ -15,9 +15,13 @@ capture (snip / webcam)
     → QR_RAW / QR_NATIVE_* / QR_VAR_* env vars
     → optional exec script (child process)
     → optional --export bash|ps1 (parent shell)
+
+encode (--source clipboard)   ← inverse direction
+    → normalize clipboard / .url|.desktop URL
+    → QR preview and/or copy image (+ optional --output PNG)
 ```
 
-Typical uses: URLs, WiFi provisioning, mailto/MATMSG, asset tags, custom automation.
+Typical uses: URLs, WiFi provisioning, mailto/MATMSG, asset tags, custom automation, phone handoff via Clipboard to QR.
 
 ---
 
@@ -26,7 +30,8 @@ Typical uses: URLs, WiFi provisioning, mailto/MATMSG, asset tags, custom automat
 | I want to… | Read |
 |------------|------|
 | Install and first scan | [Getting-Started.md](Getting-Started.md) |
-| Capture flags, webcam, mirroring | [Capture.md](Capture.md) |
+| Capture flags, webcam / WeChat models | [Capture.md](Capture.md) |
+| Clipboard to QR (`encode`) | [Encode.md](Encode.md) |
 | Auto-routing and stock rules | [Routing-And-Default-Rules.md](Routing-And-Default-Rules.md) |
 | Rule commands and `rules.json` | [Rules-CLI.md](Rules-CLI.md) |
 | Windows toasts and Copy button | [Notifications-Windows.md](Notifications-Windows.md) |
@@ -48,6 +53,12 @@ Typical uses: URLs, WiFi provisioning, mailto/MATMSG, asset tags, custom automat
 ```powershell
 visioflow rule init-defaults
 visioflow capture --source snip
+```
+
+### Clipboard to QR
+
+```powershell
+visioflow encode --source clipboard
 ```
 
 ### Disable toasts

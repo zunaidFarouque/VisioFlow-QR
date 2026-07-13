@@ -1,6 +1,6 @@
 # QR encode (`encode`)
 
-Generate QR codes from clipboard content — the **inverse** of [`capture`](Capture.md) (decode → route). Copy text or a URL, run `encode`, and show or copy a QR image.
+Generate QR codes from clipboard content — the **inverse** of [[Capture]] (decode → route). Copy text or a URL, run `encode`, and show or copy a QR image.
 
 ## Quick start
 
@@ -90,6 +90,7 @@ visioflow encode --source clipboard --ecc h --preview-position top-right
 
 ## Related
 
-- [`Capture.md`](Capture.md) — decode QR from screen or webcam (inverse direction)
-- [`Getting-Started.md`](Getting-Started.md) — install and Start Menu shortcuts
-- [`Routing-And-Default-Rules.md`](Routing-And-Default-Rules.md) — actions triggered after decode
+- [[Capture]] — decode QR from screen or webcam (inverse direction)
+- [[Quick-Start]] — install and Start Menu shortcuts
+- [[Routing-and-Auto-Route]] — actions triggered after decode
+- [[CLI-Reference]] — full `encode` flag list

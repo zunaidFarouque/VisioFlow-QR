@@ -11,7 +11,7 @@ scoop bucket add Zuanid-Scoop https://github.com/zunaidFarouque/Zunaid-Scoop-Buc
 scoop install Zuanid-Scoop/visioflow
 ```
 
-`post_install` seeds rules and syncs them to `%APPDATA%\visioflow\rules.json`. Start Menu shortcuts are defined in the manifest `shortcuts` field (four entries under **Scoop Apps → VisioFlow**; no desktop shortcuts). `post_install` removes legacy desktop shortcuts from older releases.
+`post_install` seeds rules and syncs them to `%APPDATA%\visioflow\rules.json`. Start Menu shortcuts are defined in the manifest `shortcuts` field (five entries under **Scoop Apps → VisioFlow**, including **Clipboard to QR**; no desktop shortcuts). Targets are bundled **`launchers\*.vbs`** (no console flash). `post_install` removes legacy desktop shortcuts and old `.cmd` / `scan-*` launcher names from older releases.
 
 Release zips bundle `models/` (WeChat CNN files). Manifest `env_set` points `VISIOFLOW_MODELS_DIR` at `$dir\models`.
 

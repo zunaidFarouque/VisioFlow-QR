@@ -54,6 +54,8 @@ scripts/dev-env.ps1      # Windows vcpkg + LLVM for webcam builds
 | WiFi stock rule | `wifi-handoff.ps1` — Settings UI (not silent netsh) |
 | `--wifi-handoff open-settings\|print` | Handoff mode env |
 | Webcam `--no-mirror` | Mirrored preview/decode by default |
+| `encode --source clipboard` | Clipboard to QR (v0.1.6) — preview / preview-copy / copy |
+| Hidden `.vbs` launchers | Five Start Menu entries; no console flash |
 | `daemon` + IPC | Named pipes / UDS, `reload` |
 | `--export bash\|ps1` | Parent shell injection |
 | Distribution | Scoop, traditional, portable zip via `build-release.ps1` |

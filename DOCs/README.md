@@ -6,8 +6,8 @@ Windows-first guides for install, capture, routing, and distribution. Linux is s
 
 | Document | What you'll learn |
 |----------|-------------------|
-| [Getting Started](Getting-Started.md) | Install paths, `rule init-defaults`, first scan, shortcuts |
-| [Capture](Capture.md) | `--source`, filters, webcam tuning, `--no-mirror`, halts, `--no-notify` |
+| [Getting Started](Getting-Started.md) | Install paths, `rule init-defaults`, first scan, encode, shortcuts |
+| [Capture](Capture.md) | Snip/webcam, WeChat models, exposure bracket, filters (snip-only), halts |
 | [Encode](Encode.md) | Clipboard to QR, `.url` shortcut extraction, preview window, image copy |
 | [Routing & Default Rules](Routing-And-Default-Rules.md) | Auto-route, builtins, stock rule pack, mismatch copy fallback |
 

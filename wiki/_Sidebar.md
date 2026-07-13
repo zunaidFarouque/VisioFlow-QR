@@ -6,6 +6,7 @@
 
 ### Usage
 - [Capture](Capture)
+- [Encode](Encode)
 - [Routing and Auto-Route](Routing-and-Auto-Route)
 - [Default Rules](Default-Rules)
 - [Custom Rules](Custom-Rules)

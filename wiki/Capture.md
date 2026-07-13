@@ -40,20 +40,47 @@ visioflow capture --source webcam --timeout 30 --verbose
 | Flag | Default | Purpose |
 |------|---------|---------|
 | `--timeout` | `20` | Seconds to scan with live preview |
-| `--preview-position` | `bottom-center` | Preview window anchor |
+| `--preview-position` | `bottom-center` | Preview window anchor: `top-left`, `top-center`, `top-right`, `center-left`, `center`, `center-right`, `bottom-left`, `bottom-center`, `bottom-right` |
 | `--preview-scale` | `0.12` | Preview size as fraction of screen height |
 | `--exposure-step-ms` | `100` | Hold time per exposure bracket step |
-| `--exposure-flush-grabs` | `2` | Frames to discard after exposure change |
+| `--exposure-flush-grabs` | `2` | Frames to discard after each exposure change (stale MSMF/sensor frames) |
 | `--decode-interval-ms` | `100` | Interval between QR decode attempts |
-| `--exposure-bracket` | `auto` | `auto` \| `on` \| `off` — temporal exposure bracketing |
+| `--exposure-bracket` | `auto` | Temporal exposure bracketing — see below |
 
-**Manual exposure:** focus the preview window and use **↑ / ↓** for ±0.5 EV sensor exposure. Useful for bright phone screens.
+**Exposure bracketing (`--exposure-bracket`):**
+
+| Value | Behavior |
+|-------|----------|
+| `auto` (default) | Probe once at startup; enable bracketing only if manual exposure override looks safe for this camera |
+| `on` | Always cycle sparse exposure brackets |
+| `off` | Keep camera auto-exposure only; never override |
+
+Flush grabs exist because after an exposure change the next few frames can still be from the previous setting.
+
+**Manual exposure:** focus the preview window and use **↑ / ↓** for ±0.5 EV sensor exposure. Useful for bright phone screens (independent of bracket mode).
 
 **Mirroring:** preview and decode are **horizontally mirrored by default** (selfie-style). Pass `--no-mirror` to use the raw camera orientation.
+
+### Webcam decode (WeChat CNN)
+
+Webcam decode uses **OpenCV WeChat QR CNN**, not the snip path’s rqrr + Otsu/Median pipeline. Four model files are required:
+
+- `detect.prototxt` / `detect.caffemodel`
+- `sr.prototxt` / `sr.caffemodel`
+
+**Resolve order** (first match wins):
+
+1. `VISIOFLOW_MODELS_DIR` environment variable (must exist if set)
+2. `./models` under the current working directory
+3. `models/` beside `visioflow.exe` (or an ancestor path)
+
+Release zips and Scoop installs ship `models/` next to the binary. Scoop sets `VISIOFLOW_MODELS_DIR` to `$dir\models`. Dev builds: `scripts/download-wechat-models.ps1`.
 
 ---
 
 ## Filters
+
+`--filter` applies to the **snip / static optical pipeline** only (`otsu` or `median` → Otsu). Webcam decode is WeChat CNN (+ optional exposure bracketing); the filter flag does not change that path.
 
 | `--filter` | Pipeline |
 |------------|----------|
@@ -164,11 +191,13 @@ WiFi stock rule runs `share/actions/wifi-handoff.ps1` (Settings handoff, not sil
 
 | Symptom | Fix |
 |---------|-----|
-| Webcam unavailable | Rebuild without `--no-default-features`; run `dev-env.ps1` on Windows |
+| Webcam unavailable / OpenCV missing | Rebuild **without** `--no-default-features`; run `dev-env.ps1` on Windows |
+| `missing WeChat model file` / models not found | Ensure `models/` has all four `detect.*` / `sr.*` files; check `VISIOFLOW_MODELS_DIR` points at that directory; reinstall release zip or run `scripts/download-wechat-models.ps1` |
+| Phone screen too bright / no decode | Try `--exposure-bracket on`, or focus preview and use ↑/↓ EV |
 | No auto-route | Run `visioflow rule init-defaults` |
 | Regex mismatch | `visioflow capture --source snip --verbose`; test with `rule execute` |
 | Toast missing | [[Notifications]] |
 
 ---
 
-See also: [[CLI-Reference]] · [[Routing-and-Auto-Route]]
+See also: [[Encode]] · [[CLI-Reference]] · [[Routing-and-Auto-Route]]

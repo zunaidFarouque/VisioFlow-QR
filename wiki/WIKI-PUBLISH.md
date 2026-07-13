@@ -58,6 +58,7 @@ Or open https://github.com/zunaidFarouque/VisioFlow-QR/wiki/Home
 | `Installation.md` | Install paths |
 | `Quick-Start.md` | First scan |
 | `Capture.md` | Capture flags |
+| `Encode.md` | Clipboard to QR |
 | `Notifications.md` | Windows toasts |
 | `Routing-and-Auto-Route.md` | Auto-routing |
 | `Default-Rules.md` | Stock rules |
