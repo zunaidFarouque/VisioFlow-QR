@@ -168,6 +168,8 @@ Bind hotkeys in AutoHotkey or PowerToys to the **`.vbs`** launchers.
 
 ## Build from source
 
+Setting up a **new development machine**? See [Dev-Setup-New-PC.md](Dev-Setup-New-PC.md) for the full checklist (Rust, vcpkg, LLVM, smoke tests, migration).
+
 ### Router-only (no webcam)
 
 ```powershell

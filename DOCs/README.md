@@ -24,6 +24,7 @@ Windows-first guides for install, capture, routing, and distribution. Linux is s
 
 | Document | What you'll learn |
 |----------|-------------------|
+| [Dev setup (new PC)](Dev-Setup-New-PC.md) | Clone repo, Rust/vcpkg/LLVM, verify builds, migrate from another machine |
 | [Architecture](Architecture.md) | CLI noun-verb design, TDD protocol, constraints |
 | [ENGINE_RULES.md](ENGINE_RULES.md) | `QR_RAW` / `QR_NATIVE_*` / `QR_VAR_*`, sandbox, redaction |
 | [IPC_PROTOCOL.md](IPC_PROTOCOL.md) | NDJSON message shapes (technical reference) |
