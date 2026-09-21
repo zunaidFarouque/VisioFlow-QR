@@ -3,9 +3,9 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use visioflow_core::{
-    default_rules_asset_path, is_reserved_rule_name, resolve_share_path, FileRuleStore,
-    ResolvedVars, RoutedPayload, Rule, RuleEngine, RuleError, RuleResult, RuleStore,
-    VisioFlowError,
+    default_rules_asset_path, is_reserved_rule_name, load_embedded_default_rules,
+    resolve_share_path, FileRuleStore, ResolvedVars, RoutedPayload, Rule, RuleEngine, RuleError,
+    RuleResult, RuleStore, VisioFlowError,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -45,11 +45,15 @@ pub fn rule_create(store: &dyn RuleStore, name: &str) -> RuleResult<()> {
 
 fn load_default_rules() -> RuleResult<BTreeMap<String, Rule>> {
     let path = default_rules_asset_path();
-    let contents = fs::read_to_string(&path).map_err(|e| {
-        RuleError::StoreIo(format!("read default rules at {}: {e}", path.display()))
-    })?;
-    serde_json::from_str(&contents)
-        .map_err(|e| RuleError::StoreParse(format!("parse default rules: {e}")))
+    if path.is_file() {
+        if let Ok(contents) = fs::read_to_string(&path) {
+            if let Ok(rules) = serde_json::from_str(&contents) {
+                return Ok(rules);
+            }
+        }
+    }
+    // Seamless fallback to embedded rules for standalone / Scoop installations
+    load_embedded_default_rules()
 }
 
 fn rewrite_rule_exec_paths(rules: &mut BTreeMap<String, Rule>) {

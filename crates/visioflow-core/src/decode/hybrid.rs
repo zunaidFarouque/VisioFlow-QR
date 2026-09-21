@@ -1,7 +1,7 @@
 use image::{DynamicImage, GrayImage};
 
 use crate::error::Result;
-use crate::optical::{preprocess_frame, preprocess_frame_grayscale, MAX_FRAME_WIDTH};
+use crate::optical::{binarize_otsu, preprocess_frame_grayscale, MAX_FRAME_WIDTH};
 use crate::traits::{OpticalFilterKind, PayloadDecoder};
 
 use super::qr::RqrrDecoder;
@@ -32,7 +32,8 @@ pub fn decode_dynamic_frame(
         return Ok(payloads);
     }
 
-    let binarized = preprocess_frame(frame, MAX_FRAME_WIDTH, filter);
+    // Reuse already-downsampled and filtered grayscale image directly instead of re-resizing.
+    let binarized = binarize_otsu(&grayscale);
     rqrr.decode(&binarized)
 }
 
@@ -41,19 +42,7 @@ pub fn decode_dynamic_frame_live(
     frame: &DynamicImage,
     filter: OpticalFilterKind,
 ) -> Result<Vec<String>> {
-    if let Ok(payloads) = decode_with_rxing(frame.clone()) {
-        return Ok(payloads);
-    }
-
-    let rqrr = RqrrDecoder;
-
-    let grayscale = preprocess_frame_grayscale(frame, MAX_FRAME_WIDTH, filter);
-    if let Ok(payloads) = rqrr.decode(&grayscale) {
-        return Ok(payloads);
-    }
-
-    let binarized = preprocess_frame(frame, MAX_FRAME_WIDTH, filter);
-    rqrr.decode(&binarized)
+    decode_dynamic_frame(frame, filter)
 }
 
 #[cfg(test)]

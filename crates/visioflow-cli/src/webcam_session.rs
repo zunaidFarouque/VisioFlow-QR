@@ -19,7 +19,7 @@ use crate::decode_worker::{AsyncDecodeWorker, DecodeOutcome};
 use crate::preview_overlay::draw_preview_status_overlay;
 use crate::screen_bounds::{apply_anchored_preview_position, primary_work_area};
 use crate::webcam_preview::{
-    downscale_rgb_to_minifb_buffer, mirror_bgr_horizontally, preview_dimensions_from_screen,
+    downscale_bgr_to_minifb_buffer, mirror_bgr_horizontally, preview_dimensions_from_screen,
     should_attempt_decode,
 };
 
@@ -385,9 +385,8 @@ fn show_frame_in_window(
     window: &mut Window,
     buffer: &mut Vec<u32>,
 ) -> Result<()> {
-    let rgb = bgr_to_rgb(frame);
-    downscale_rgb_to_minifb_buffer(
-        &rgb,
+    downscale_bgr_to_minifb_buffer(
+        &frame.data,
         frame.width,
         frame.height,
         preview_width,
@@ -399,16 +398,6 @@ fn show_frame_in_window(
         .update_with_buffer(buffer, preview_width as usize, preview_height as usize)
         .map_err(|e| VisioFlowError::Capture(format!("failed to update preview window: {e}")))?;
     Ok(())
-}
-
-fn bgr_to_rgb(frame: &BgrFrame) -> Vec<u8> {
-    let mut rgb = Vec::with_capacity(frame.data.len());
-    for chunk in frame.data.chunks_exact(3) {
-        rgb.push(chunk[2]);
-        rgb.push(chunk[1]);
-        rgb.push(chunk[0]);
-    }
-    rgb
 }
 
 #[cfg(test)]

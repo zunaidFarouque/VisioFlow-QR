@@ -39,7 +39,10 @@ pub use rules::{
     PayloadRouter, ResolvedVars, RouteMode, RouteResult, RoutedPayload, RoutingEvent, Rule,
     RuleEngine, RuleError, RuleResult, RuleStore, RESERVED_RULE_NAMES,
 };
-pub use share::{default_rules_asset_path, resolve_share_path};
+pub use share::{
+    default_rules_asset_path, load_embedded_default_rules, resolve_share_path,
+    EMBEDDED_DEFAULT_RULES_JSON,
+};
 pub use sys::{platform_executor, SystemExecutor};
 pub use traits::{
     BgrFrame, CnnQrDecoder, ExposureHal, FrameSource, LiveFrameSource, OpticalFilterKind,

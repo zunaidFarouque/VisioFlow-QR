@@ -71,6 +71,15 @@ pub fn default_rules_asset_path() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../assets/default-rules.json")
 }
 
+/// Shipped stock default rules JSON embedded directly into the binary.
+pub const EMBEDDED_DEFAULT_RULES_JSON: &str = include_str!("../../../assets/default-rules.json");
+
+/// Load the embedded stock default rules JSON without requiring disk assets.
+pub fn load_embedded_default_rules() -> crate::rules::RuleResult<std::collections::BTreeMap<String, crate::rules::Rule>> {
+    serde_json::from_str(EMBEDDED_DEFAULT_RULES_JSON)
+        .map_err(|e| crate::rules::RuleError::StoreParse(format!("parse embedded default rules: {e}")))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -136,5 +145,16 @@ mod tests {
     fn normalize_relative_strips_share_prefix() {
         assert_eq!(normalize_relative("share/actions/foo"), "actions/foo");
         assert_eq!(normalize_relative("actions/foo"), "actions/foo");
+    }
+
+    #[test]
+    fn load_embedded_default_rules_returns_stock_rules() {
+        let rules = load_embedded_default_rules().expect("embedded rules must parse");
+        assert!(rules.contains_key("wifi"));
+        assert!(rules.contains_key("url"));
+        assert!(rules.contains_key("mailto"));
+        assert!(rules.contains_key("tel"));
+        assert!(rules.contains_key("geo"));
+        assert!(rules.contains_key("vcard"));
     }
 }

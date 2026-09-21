@@ -184,3 +184,29 @@ fn rule_engine_route_fully_loads_rule_and_native_vars() {
     assert_eq!(routed.rule.name, "uri");
     assert_eq!(routed.vars.get("QR_NATIVE_URI_HOST"), Some("host.test"));
 }
+
+#[test]
+fn get_or_compile_regex_caches_compiled_pattern() {
+    use crate::rules::engine::get_or_compile_regex;
+
+    let pattern = r"^ORDER-(?P<id>[0-9]+)$";
+    let re1 = get_or_compile_regex(pattern).expect("compile regex 1");
+    let re2 = get_or_compile_regex(pattern).expect("compile regex 2");
+
+    assert_eq!(re1.as_str(), pattern);
+    assert_eq!(re2.as_str(), pattern);
+    assert!(re1.is_match("ORDER-12345"));
+    assert!(re2.is_match("ORDER-12345"));
+}
+
+#[test]
+fn get_or_compile_regex_caches_invalid_regex_error() {
+    use crate::rules::engine::get_or_compile_regex;
+
+    let invalid = r"(?P<unclosed";
+    let err1 = get_or_compile_regex(invalid).expect_err("should error 1");
+    let err2 = get_or_compile_regex(invalid).expect_err("should error 2");
+
+    assert!(matches!(err1, RuleError::InvalidRegex(_)));
+    assert!(matches!(err2, RuleError::InvalidRegex(_)));
+}

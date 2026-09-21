@@ -2,7 +2,9 @@ use std::collections::HashSet;
 
 use crate::native::{NativeParser, WifiParser};
 use crate::rules::builtins::is_excluded_from_auto_scan;
-use crate::rules::engine::{resolve_payload_fully, RoutedPayload};
+use crate::rules::engine::{
+    apply_rule, merge_native_vars, resolve_payload_fully, RoutedPayload,
+};
 use crate::rules::error::{Result, RuleError};
 use crate::rules::model::Rule;
 use crate::rules::store::RuleStore;
@@ -153,11 +155,14 @@ fn try_match_rule(
     catch_all_priority: u32,
 ) -> Result<Option<RoutedPayload>> {
     if rule.regex.is_some() {
-        return match resolve_payload_fully(rule, payload) {
-            Ok(vars) => Ok(Some(RoutedPayload {
-                rule: rule.clone(),
-                vars,
-            })),
+        return match apply_rule(rule, payload) {
+            Ok(mut vars) => {
+                merge_native_vars(&mut vars, payload);
+                Ok(Some(RoutedPayload {
+                    rule: rule.clone(),
+                    vars,
+                }))
+            }
             Err(RuleError::NoMatch) => Ok(None),
             Err(e) => Err(e),
         };

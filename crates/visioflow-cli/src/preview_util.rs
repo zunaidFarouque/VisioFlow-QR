@@ -103,6 +103,89 @@ pub fn rgb_to_preview_buffer_into(rgb: &[u8], width: u32, height: u32, out: &mut
     out.resize(pixel_count, 0);
 }
 
+/// Single-pass nearest-neighbor downscale from RGBA8 source straight into a minifb buffer.
+pub fn downscale_rgba_to_minifb_buffer(
+    src: &[u8],
+    src_width: u32,
+    src_height: u32,
+    dst_width: u32,
+    dst_height: u32,
+    out: &mut Vec<u32>,
+) {
+    let pixel_count = (dst_width as usize) * (dst_height as usize);
+    out.clear();
+    out.reserve(pixel_count);
+
+    if src_width == 0 || src_height == 0 || dst_width == 0 || dst_height == 0 {
+        out.resize(pixel_count, 0);
+        return;
+    }
+
+    let x_ratio = src_width as f32 / dst_width as f32;
+    let y_ratio = src_height as f32 / dst_height as f32;
+    let src_stride = (src_width * 4) as usize;
+
+    for dy in 0..dst_height {
+        let sy = ((dy as f32 * y_ratio) as u32).min(src_height - 1);
+        let row_base = (sy as usize) * src_stride;
+        for dx in 0..dst_width {
+            let sx = ((dx as f32 * x_ratio) as u32).min(src_width - 1);
+            let i = row_base + (sx as usize * 4);
+            if i + 2 < src.len() {
+                out.push(
+                    (u32::from(src[i]) << 16)
+                        | (u32::from(src[i + 1]) << 8)
+                        | u32::from(src[i + 2]),
+                );
+            } else {
+                out.push(0);
+            }
+        }
+    }
+}
+
+/// Single-pass nearest-neighbor downscale from BGR8 source straight into a minifb buffer (`0x00RRGGBB`).
+pub fn downscale_bgr_to_minifb_buffer(
+    src: &[u8],
+    src_width: u32,
+    src_height: u32,
+    dst_width: u32,
+    dst_height: u32,
+    out: &mut Vec<u32>,
+) {
+    let pixel_count = (dst_width as usize) * (dst_height as usize);
+    out.clear();
+    out.reserve(pixel_count);
+
+    if src_width == 0 || src_height == 0 || dst_width == 0 || dst_height == 0 {
+        out.resize(pixel_count, 0);
+        return;
+    }
+
+    let x_ratio = src_width as f32 / dst_width as f32;
+    let y_ratio = src_height as f32 / dst_height as f32;
+    let src_stride = (src_width * 3) as usize;
+
+    for dy in 0..dst_height {
+        let sy = ((dy as f32 * y_ratio) as u32).min(src_height - 1);
+        let row_base = (sy as usize) * src_stride;
+        for dx in 0..dst_width {
+            let sx = ((dx as f32 * x_ratio) as u32).min(src_width - 1);
+            let i = row_base + (sx as usize * 3);
+            if i + 2 < src.len() {
+                // BGR byte order: src[i]=B, src[i+1]=G, src[i+2]=R
+                out.push(
+                    (u32::from(src[i + 2]) << 16)
+                        | (u32::from(src[i + 1]) << 8)
+                        | u32::from(src[i]),
+                );
+            } else {
+                out.push(0);
+            }
+        }
+    }
+}
+
 /// Map QR module count (21 = version 1) to a preview height fraction in [0.50, 0.90].
 #[must_use]
 pub fn qr_preview_height_fraction(module_dimension: u32) -> f32 {
@@ -155,5 +238,23 @@ mod tests {
         assert_eq!(side, 300);
         let dense = qr_preview_square_side(1920, 1080, 77);
         assert_eq!(dense, 972);
+    }
+
+    #[test]
+    fn downscale_rgba_to_minifb_buffer_packs_rgba_pixels() {
+        // Red pixel with alpha 255
+        let src = vec![0xFF, 0x12, 0x34, 0xFF];
+        let mut out = Vec::new();
+        downscale_rgba_to_minifb_buffer(&src, 1, 1, 1, 1, &mut out);
+        assert_eq!(out, vec![0x00_FF_12_34]);
+    }
+
+    #[test]
+    fn downscale_bgr_to_minifb_buffer_swaps_b_and_r() {
+        // BGR pixel: B=0x34, G=0x12, R=0xFF -> expected 0x00_FF_12_34
+        let src = vec![0x34, 0x12, 0xFF];
+        let mut out = Vec::new();
+        downscale_bgr_to_minifb_buffer(&src, 1, 1, 1, 1, &mut out);
+        assert_eq!(out, vec![0x00_FF_12_34]);
     }
 }

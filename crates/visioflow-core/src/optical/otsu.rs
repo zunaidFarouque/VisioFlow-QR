@@ -1,12 +1,12 @@
-use image::{GrayImage, Luma};
+use image::GrayImage;
 
 /// Compute Otsu's optimal threshold for a grayscale image.
 pub fn otsu_threshold(image: &GrayImage) -> u8 {
     let mut histogram = [0u32; 256];
     let total = (image.width() * image.height()) as f32;
 
-    for pixel in image.pixels() {
-        histogram[pixel[0] as usize] += 1;
+    for &pixel in image.as_raw() {
+        histogram[pixel as usize] += 1;
     }
 
     let mut sum = 0f64;
@@ -50,12 +50,12 @@ pub fn otsu_threshold(image: &GrayImage) -> u8 {
 /// Binarize a grayscale image using Otsu's method.
 pub fn binarize_otsu(image: &GrayImage) -> GrayImage {
     let threshold = otsu_threshold(image);
-    let mut output = GrayImage::new(image.width(), image.height());
+    let raw: Vec<u8> = image
+        .as_raw()
+        .iter()
+        .map(|&pixel| if pixel > threshold { 255 } else { 0 })
+        .collect();
 
-    for (x, y, pixel) in image.enumerate_pixels() {
-        let value = if pixel[0] > threshold { 255 } else { 0 };
-        output.put_pixel(x, y, Luma([value]));
-    }
-
-    output
+    GrayImage::from_raw(image.width(), image.height(), raw)
+        .unwrap_or_else(|| GrayImage::new(image.width(), image.height()))
 }

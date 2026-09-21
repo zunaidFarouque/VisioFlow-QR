@@ -1,3 +1,6 @@
+use std::collections::HashMap;
+use std::sync::{LazyLock, RwLock};
+
 use regex::Regex;
 
 use crate::native::{
@@ -6,6 +9,41 @@ use crate::native::{
 use crate::rules::error::{Result, RuleError};
 use crate::rules::model::{ResolvedVars, Rule};
 use crate::rules::store::RuleStore;
+
+static REGEX_CACHE: LazyLock<RwLock<HashMap<String, std::result::Result<Regex, String>>>> =
+    LazyLock::new(|| RwLock::new(HashMap::new()));
+
+/// Retrieve a precompiled regex from the cache or compile and cache it.
+pub fn get_or_compile_regex(pattern: &str) -> Result<Regex> {
+    if let Ok(guard) = REGEX_CACHE.read() {
+        if let Some(res) = guard.get(pattern) {
+            return match res {
+                Ok(re) => Ok(re.clone()),
+                Err(err) => Err(RuleError::InvalidRegex(err.clone())),
+            };
+        }
+    }
+
+    let mut guard = REGEX_CACHE.write().unwrap_or_else(|p| p.into_inner());
+    if let Some(res) = guard.get(pattern) {
+        return match res {
+            Ok(re) => Ok(re.clone()),
+            Err(err) => Err(RuleError::InvalidRegex(err.clone())),
+        };
+    }
+
+    match Regex::new(pattern) {
+        Ok(re) => {
+            guard.insert(pattern.to_owned(), Ok(re.clone()));
+            Ok(re)
+        }
+        Err(e) => {
+            let msg = e.to_string();
+            guard.insert(pattern.to_owned(), Err(msg.clone()));
+            Err(RuleError::InvalidRegex(msg))
+        }
+    }
+}
 
 /// Routes a payload through a named rule and produces resolved env vars.
 #[cfg_attr(test, mockall::automock)]
@@ -22,7 +60,7 @@ pub fn apply_rule(rule: &Rule, payload: &str) -> Result<ResolvedVars> {
         return Ok(resolved);
     };
 
-    let regex = Regex::new(pattern).map_err(|e| RuleError::InvalidRegex(e.to_string()))?;
+    let regex = get_or_compile_regex(pattern)?;
     let captures = regex.captures(payload).ok_or(RuleError::NoMatch)?;
 
     for name in regex.capture_names().flatten() {
