@@ -160,7 +160,7 @@ pub fn rgb_to_preview_buffer_into(rgb: &[u8], width: u32, height: u32, out: &mut
     out.clear();
     out.reserve(pixel_count);
 
-    for chunk in rgb.chunks_exact(3).take(pixel_count) {
+    for chunk in rgb.as_chunks::<3>().0.iter().take(pixel_count) {
         out.push((u32::from(chunk[0]) << 16) | (u32::from(chunk[1]) << 8) | u32::from(chunk[2]));
     }
 
