@@ -21,8 +21,9 @@ pub use capture::{
 };
 pub use decode::MANUAL_EV_STEP;
 pub use encode::{
-    encode_qr_gray, encode_qr_rgba, is_internet_shortcut_path, parse_internet_shortcut_contents,
-    parse_internet_shortcut_file, resolve_encode_payload, EncodedQr, QrErrorCorrection,
+    encode_qr_gray, encode_qr_rgba, encode_qr_terminal, is_internet_shortcut_path,
+    parse_internet_shortcut_contents, parse_internet_shortcut_file, resolve_encode_payload,
+    EncodedQr, QrErrorCorrection,
 };
 pub use error::VisioFlowError;
 pub use export::{emit_bash, emit_ps1, vars_from_payloads, vars_from_resolved};

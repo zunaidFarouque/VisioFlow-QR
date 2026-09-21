@@ -109,6 +109,32 @@ pub fn encode_qr_gray(payload: &str, min_pixel_size: u32) -> GrayImage {
     gray
 }
 
+/// Render a compact Unicode string using half-block characters (Dense1x2) for terminal display.
+pub fn encode_qr_terminal(payload: &str, ecc: QrErrorCorrection) -> Result<String> {
+    let code = qrcode::QrCode::with_error_correction_level(payload.as_bytes(), ecc.to_ec_level())
+        .map_err(|e| {
+            let hint = if payload.len() > 800 {
+                " — try shortening the text"
+            } else {
+                ""
+            };
+            VisioFlowError::Encode(format!(
+                "payload too long for QR code ({} bytes){hint}: {e}",
+                payload.len()
+            ))
+        })?;
+
+    // Dense1x2 renders 2 vertical modules per character using '▀', '▄', '█', ' '
+    let rendered = code
+        .render::<qrcode::render::unicode::Dense1x2>()
+        .dark_color(qrcode::render::unicode::Dense1x2::Light)
+        .light_color(qrcode::render::unicode::Dense1x2::Dark)
+        .quiet_zone(true)
+        .build();
+
+    Ok(rendered)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -129,5 +155,14 @@ mod tests {
         let payload = "x".repeat(10_000);
         let err = encode_qr_rgba(&payload, QrErrorCorrection::M, 256).expect_err("too long");
         assert!(matches!(err, VisioFlowError::Encode(msg) if msg.contains("too long")));
+    }
+
+    #[test]
+    fn encode_qr_terminal_produces_unicode_blocks() {
+        let payload = "https://example.com/terminal-qr";
+        let rendered = encode_qr_terminal(payload, QrErrorCorrection::M).expect("encode terminal qr");
+        assert!(!rendered.is_empty());
+        // Dense1x2 should contain half-block Unicode characters or spaces
+        assert!(rendered.contains('▀') || rendered.contains('▄') || rendered.contains('█') || rendered.contains(' '));
     }
 }

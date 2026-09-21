@@ -22,6 +22,15 @@ impl FrameSource for SnipFrameSource {
     }
 }
 
+/// Captures an image from the system clipboard as a frame.
+pub struct ClipboardFrameSource;
+
+impl FrameSource for ClipboardFrameSource {
+    fn capture_frame(&self) -> Result<DynamicImage> {
+        crate::clipboard_image::read_clipboard_image().map_err(VisioFlowError::Capture)
+    }
+}
+
 /// Loads a frame from disk (used for integration tests and debugging).
 pub struct FileFrameSource {
     path: std::path::PathBuf,

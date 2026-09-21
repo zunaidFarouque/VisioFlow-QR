@@ -192,7 +192,7 @@ enum Commands {
 
     /// Generate QR codes from clipboard or other sources
     Encode {
-        #[arg(long, value_enum)]
+        #[arg(long, value_enum, default_value = "clipboard")]
         source: EncodeSource,
 
         /// Preview window anchor position
@@ -214,6 +214,18 @@ enum Commands {
         /// Save the QR image to a PNG file
         #[arg(long, value_name = "PATH")]
         output: Option<PathBuf>,
+
+        /// Text payload to encode
+        #[arg(long)]
+        text: Option<String>,
+
+        /// File whose content to encode
+        #[arg(long, value_name = "PATH")]
+        file: Option<PathBuf>,
+
+        /// Render compact Unicode QR in terminal stdout
+        #[arg(long)]
+        terminal: bool,
 
         /// Use this text instead of reading the clipboard (integration tests)
         #[arg(long, hide = true)]
@@ -720,8 +732,23 @@ fn run() -> visioflow_core::error::Result<()> {
             deliver,
             no_notify,
             output,
+            text,
+            file,
+            terminal,
             input_text,
         } => {
+            let deliver = if terminal {
+                EncodeDeliver::Terminal
+            } else {
+                deliver
+            };
+            let source = if text.is_some() {
+                EncodeSource::Text
+            } else if file.is_some() {
+                EncodeSource::File
+            } else {
+                source
+            };
             let payload = run_encode(EncodeArgs {
                 source,
                 preview_position,
@@ -731,8 +758,10 @@ fn run() -> visioflow_core::error::Result<()> {
                 verbose: cli.verbose,
                 output,
                 input_text,
+                text,
+                file,
             })?;
-            if !cli.silent {
+            if !cli.silent && !deliver.is_terminal() {
                 println!("{payload}");
             }
         }

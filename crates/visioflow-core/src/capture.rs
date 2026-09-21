@@ -1,6 +1,6 @@
 use crate::decode::{decode_with_rxing, prepare_live_decode_frame, LiveDecodeProfile};
 use crate::error::Result;
-use crate::optical::{preprocess_frame, preprocess_frame_grayscale, MAX_FRAME_WIDTH};
+use crate::optical::{preprocess_frame_grayscale, MAX_FRAME_WIDTH};
 use crate::traits::{FrameSource, OpticalFilterKind, PayloadDecoder};
 
 /// Orchestrates frame capture, optical preprocessing, and payload decoding.
@@ -34,12 +34,12 @@ pub fn decode_captured_frame(
         return Ok(payloads);
     }
 
-    let binarized = preprocess_frame(frame, MAX_FRAME_WIDTH, filter);
+    let grayscale = preprocess_frame_grayscale(frame, MAX_FRAME_WIDTH, filter);
+    let binarized = crate::optical::binarize_otsu(&grayscale);
     if let Ok(payloads) = decoder.decode(&binarized) {
         return Ok(payloads);
     }
 
-    let grayscale = preprocess_frame_grayscale(frame, MAX_FRAME_WIDTH, filter);
     decoder.decode(&grayscale)
 }
 
@@ -70,7 +70,7 @@ pub fn decode_captured_frame_live_with_profile(
         return Ok(payloads);
     }
 
-    let binarized = preprocess_frame(&prepared, MAX_FRAME_WIDTH, filter);
+    let binarized = crate::optical::binarize_otsu(&grayscale);
     decoder.decode(&binarized)
 }
 

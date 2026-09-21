@@ -128,3 +128,26 @@ fn cli_capture_export_ps1_emits_qr_raw() {
             "$env:QR_RAW = 'export-ps1-payload'",
         ));
 }
+
+#[test]
+fn cli_capture_clipboard_source_with_input_image() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let fixture = dir.path().join("qr.png");
+    render_qr_fixture(&fixture, "clipboard-source-payload");
+
+    Command::cargo_bin("visioflow")
+        .expect("visioflow binary")
+        .args([
+            "capture",
+            "--source",
+            "clipboard",
+            "--action",
+            "stdout",
+            "--input-image",
+            &fixture.display().to_string(),
+        ])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("clipboard-source-payload"));
+}
+

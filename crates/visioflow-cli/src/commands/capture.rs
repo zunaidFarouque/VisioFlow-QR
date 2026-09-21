@@ -2,7 +2,7 @@ use clap::ValueEnum;
 use std::collections::HashSet;
 use std::result::Result as StdResult;
 use visioflow_core::capture::CaptureEngine;
-use visioflow_core::decode::RqrrDecoder;
+use visioflow_core::decode::HybridQrDecoder;
 use visioflow_core::error::Result;
 use visioflow_core::traits::{FrameSource, OpticalFilterKind};
 use visioflow_core::{
@@ -10,7 +10,7 @@ use visioflow_core::{
     RuleStore,
 };
 
-use crate::capture::{FileFrameSource, SnipFrameSource};
+use crate::capture::{ClipboardFrameSource, FileFrameSource, SnipFrameSource};
 use crate::notifications::{
     send_native_notification, truncate_for_toast, NativeNotification, TOAST_BODY_MAX_CHARS,
 };
@@ -24,10 +24,11 @@ pub use crate::commands::exec::spawn_rule_actions;
 #[cfg(not(feature = "opencv-webcam"))]
 const DEFAULT_WEBCAM_TIMEOUT_SECS: u64 = 20;
 
-#[derive(Debug, Clone, Copy, ValueEnum)]
+#[derive(Debug, Clone, Copy, ValueEnum, PartialEq, Eq)]
 pub enum CaptureSource {
     Snip,
     Webcam,
+    Clipboard,
 }
 
 #[derive(Debug, Clone, Copy, ValueEnum, Default)]
@@ -138,7 +139,7 @@ impl From<CaptureFilter> for OpticalFilterKind {
 
 pub fn run_capture(args: CaptureArgs) -> Result<Vec<String>> {
     let filter: OpticalFilterKind = args.filter.into();
-    let decoder = RqrrDecoder;
+    let decoder = HybridQrDecoder;
 
     if let Some(path) = args.input_image {
         let engine = CaptureEngine::new(FileFrameSource::new(path), decoder);
@@ -148,6 +149,10 @@ pub fn run_capture(args: CaptureArgs) -> Result<Vec<String>> {
     match args.source {
         CaptureSource::Snip => {
             let engine = CaptureEngine::new(SnipFrameSource, decoder);
+            engine.run(filter)
+        }
+        CaptureSource::Clipboard => {
+            let engine = CaptureEngine::new(ClipboardFrameSource, decoder);
             engine.run(filter)
         }
         CaptureSource::Webcam => {
@@ -422,7 +427,7 @@ pub fn run_capture_with_source<S: FrameSource>(
     source: S,
     filter: OpticalFilterKind,
 ) -> Result<Vec<String>> {
-    let engine = CaptureEngine::new(source, RqrrDecoder);
+    let engine = CaptureEngine::new(source, HybridQrDecoder);
     engine.run(filter)
 }
 

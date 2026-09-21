@@ -13,9 +13,13 @@ use crate::qr_preview::show_qr_preview_window;
 /// Minimum encoded QR image size in pixels per side.
 const MIN_QR_PIXEL_SIZE: u32 = 512;
 
-#[derive(Debug, Clone, Copy, ValueEnum, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, ValueEnum, PartialEq, Eq, Default)]
 pub enum EncodeSource {
+    #[default]
     Clipboard,
+    Stdin,
+    Text,
+    File,
 }
 
 #[derive(Debug, Clone, Copy, ValueEnum, PartialEq, Eq, Default)]
@@ -36,6 +40,8 @@ pub enum EncodeDeliver {
     PreviewCopy,
     /// Copy QR image to clipboard without preview.
     Copy,
+    /// Render compact Unicode QR in terminal stdout.
+    Terminal,
 }
 
 impl EncodeDeliver {
@@ -47,6 +53,11 @@ impl EncodeDeliver {
     #[must_use]
     pub const fn copies_image(self) -> bool {
         matches!(self, Self::PreviewCopy | Self::Copy)
+    }
+
+    #[must_use]
+    pub const fn is_terminal(self) -> bool {
+        matches!(self, Self::Terminal)
     }
 }
 
@@ -71,26 +82,51 @@ pub struct EncodeArgs {
     pub verbose: bool,
     pub output: Option<PathBuf>,
     pub input_text: Option<String>,
+    pub text: Option<String>,
+    pub file: Option<PathBuf>,
 }
 
 pub fn run_encode(args: EncodeArgs) -> Result<String> {
-    let (clipboard_text, file_paths) = match args.source {
-        EncodeSource::Clipboard => resolve_clipboard_input(args.input_text.as_deref())?,
-    };
-
-    if args.verbose {
-        if !file_paths.is_empty() {
-            eprintln!(
-                "encode: found {} file path(s) on clipboard",
-                file_paths.len()
-            );
-            for path in &file_paths {
-                eprintln!("  {}", path.display());
-            }
+    let payload = match args.source {
+        EncodeSource::Text => args
+            .text
+            .or(args.input_text)
+            .ok_or_else(|| VisioFlowError::Encode("no text provided for encoding".into()))?,
+        EncodeSource::File => {
+            let path = args
+                .file
+                .ok_or_else(|| VisioFlowError::Encode("no file provided for encoding".into()))?;
+            std::fs::read_to_string(&path).map_err(|e| {
+                VisioFlowError::Encode(format!("failed to read {}: {e}", path.display()))
+            })?
         }
-    }
+        EncodeSource::Stdin => {
+            use std::io::Read;
+            let mut buffer = String::new();
+            std::io::stdin()
+                .read_to_string(&mut buffer)
+                .map_err(|e| VisioFlowError::Encode(format!("failed to read stdin: {e}")))?;
+            buffer.trim_end_matches(['\r', '\n']).to_string()
+        }
+        EncodeSource::Clipboard => {
+            let (clipboard_text, file_paths) =
+                resolve_clipboard_input(args.input_text.as_deref())?;
 
-    let payload = resolve_encode_payload(clipboard_text.as_deref(), &file_paths)?;
+            if args.verbose {
+                if !file_paths.is_empty() {
+                    eprintln!(
+                        "encode: found {} file path(s) on clipboard",
+                        file_paths.len()
+                    );
+                    for path in &file_paths {
+                        eprintln!("  {}", path.display());
+                    }
+                }
+            }
+
+            resolve_encode_payload(clipboard_text.as_deref(), &file_paths)?
+        }
+    };
 
     if args.verbose {
         eprintln!("encode: payload ({} bytes)", payload.len());
@@ -123,6 +159,9 @@ pub fn run_encode(args: EncodeArgs) -> Result<String> {
             encoded.module_dimension,
             args.preview_position,
         )?;
+    } else if args.deliver.is_terminal() {
+        let terminal_qr = visioflow_core::encode_qr_terminal(&payload, args.ecc.into())?;
+        println!("{terminal_qr}");
     }
 
     Ok(payload)
