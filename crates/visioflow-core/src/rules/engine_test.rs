@@ -135,6 +135,41 @@ fn merge_native_vars_adds_uri_keys() {
 }
 
 #[test]
+fn merge_native_vars_adds_otp_keys() {
+    let mut resolved = ResolvedVars::new();
+    let payload = "otpauth://totp/GitHub:octocat?secret=MYSECRET123";
+
+    merge_native_vars(&mut resolved, payload);
+
+    assert_eq!(resolved.get("QR_NATIVE_OTP_TYPE"), Some("totp"));
+    assert_eq!(resolved.get("QR_NATIVE_OTP_SECRET"), Some("MYSECRET123"));
+    assert_eq!(resolved.get("QR_NATIVE_OTP_ISSUER"), Some("GitHub"));
+    assert_eq!(resolved.get("QR_NATIVE_OTP_ACCOUNT"), Some("octocat"));
+}
+
+#[test]
+fn merge_native_vars_adds_sms_keys() {
+    let mut resolved = ResolvedVars::new();
+    let payload = "SMSTO:+15551234567:Hello there";
+
+    merge_native_vars(&mut resolved, payload);
+
+    assert_eq!(resolved.get("QR_NATIVE_SMS_NUMBER"), Some("+15551234567"));
+    assert_eq!(resolved.get("QR_NATIVE_SMS_BODY"), Some("Hello there"));
+}
+
+#[test]
+fn merge_native_vars_adds_event_keys() {
+    let mut resolved = ResolvedVars::new();
+    let payload = "BEGIN:VEVENT\nSUMMARY:Demo Event\nLOCATION:Online\nEND:VEVENT";
+
+    merge_native_vars(&mut resolved, payload);
+
+    assert_eq!(resolved.get("QR_NATIVE_EVENT_SUMMARY"), Some("Demo Event"));
+    assert_eq!(resolved.get("QR_NATIVE_EVENT_LOCATION"), Some("Online"));
+}
+
+#[test]
 fn resolve_payload_fully_merges_rule_and_native_vars() {
     let rule = Rule::new("wifi");
     let payload = "WIFI:T:WPA;S:guest;P:pass;;";

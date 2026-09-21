@@ -6,7 +6,14 @@ fn marks_wifi_password_as_sensitive() {
 }
 
 #[test]
+fn marks_otp_secret_as_sensitive() {
+    assert!(is_sensitive_native_key("QR_NATIVE_OTP_SECRET"));
+}
+
+#[test]
 fn does_not_mark_non_sensitive_keys() {
     assert!(!is_sensitive_native_key("QR_NATIVE_WIFI_SSID"));
     assert!(!is_sensitive_native_key("QR_NATIVE_URI_HOST"));
+    assert!(!is_sensitive_native_key("QR_NATIVE_OTP_ISSUER"));
 }
+

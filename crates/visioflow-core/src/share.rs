@@ -156,5 +156,8 @@ mod tests {
         assert!(rules.contains_key("tel"));
         assert!(rules.contains_key("geo"));
         assert!(rules.contains_key("vcard"));
+        assert!(rules.contains_key("otp"));
+        assert!(rules.contains_key("sms"));
+        assert!(rules.contains_key("event"));
     }
 }

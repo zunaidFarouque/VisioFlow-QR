@@ -4,7 +4,8 @@ use std::sync::{LazyLock, RwLock};
 use regex::Regex;
 
 use crate::native::{
-    GeoParser, MailtoParser, NativeParser, TelParser, UriParser, VcardParser, WifiParser,
+    EventParser, GeoParser, MailtoParser, NativeParser, OtpParser, SmsParser, TelParser,
+    UriParser, VcardParser, WifiParser,
 };
 use crate::rules::error::{Result, RuleError};
 use crate::rules::model::{ResolvedVars, Rule};
@@ -114,6 +115,9 @@ pub fn merge_native_vars(resolved: &mut ResolvedVars, payload: &str) {
         &TelParser,
         &GeoParser,
         &VcardParser,
+        &OtpParser,
+        &SmsParser,
+        &EventParser,
     ];
     for parser in PARSERS {
         for (key, value) in parser.parse(payload) {

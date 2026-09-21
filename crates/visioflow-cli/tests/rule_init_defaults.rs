@@ -10,7 +10,9 @@ fn store_path(dir: &tempfile::TempDir) -> String {
 const STOCK_RULE_NAMES: &[&str] = &[
     "wifi",
     "url",
+    "otp",
     "mailto",
+    "sms",
     "tel",
     "geo",
     "vcard",

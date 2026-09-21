@@ -267,6 +267,8 @@ mod tests {
         assert!(rules.contains_key("url"));
         assert!(rules.contains_key("wifi"));
         assert!(rules.contains_key("matmsg"));
+        assert!(rules.contains_key("otp"));
+        assert!(rules.contains_key("sms"));
         assert!(rules.contains_key("plain"));
 
         let url = rules.get("url").expect("url rule");

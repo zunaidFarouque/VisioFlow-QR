@@ -13,12 +13,26 @@
     "regex": "^https?://\\S+$",
     "exec": "share/actions/open-url"
   },
+  "otp": {
+    "name": "otp",
+    "auto_compatible": true,
+    "priority": 12,
+    "regex": "^(?i)otpauth://",
+    "exec": "share/actions/copy-text"
+  },
   "mailto": {
     "name": "mailto",
     "auto_compatible": true,
     "priority": 15,
     "regex": "^mailto:",
     "exec": "share/actions/open-mailto"
+  },
+  "sms": {
+    "name": "sms",
+    "auto_compatible": true,
+    "priority": 15,
+    "regex": "^(?i)(?:smsto:|sms:)",
+    "exec": "share/actions/copy-text"
   },
   "tel": {
     "name": "tel",

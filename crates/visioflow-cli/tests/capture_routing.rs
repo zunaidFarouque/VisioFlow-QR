@@ -242,3 +242,100 @@ fn capture_auto_except_wifi_skips_wifi_rule() {
         .stderr(predicate::str::contains("connecting to WiFi").not())
         .stderr(predicate::str::contains(r#"matched rule "catchall""#));
 }
+
+#[test]
+fn capture_auto_routes_otp_rule() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let fixture = dir.path().join("qr.png");
+    render_qr_fixture(
+        &fixture,
+        "otpauth://totp/AcmeCorp:alice@example.com?secret=JBSWY3DPEHPK3PXP",
+    );
+
+    let store = dir.path().join("rules.json");
+    let store_s = store.display().to_string();
+    Command::cargo_bin("visioflow")
+        .expect("visioflow binary")
+        .args(["rule", "--store", &store_s, "init-defaults"])
+        .assert()
+        .success();
+
+    Command::cargo_bin("visioflow")
+        .expect("visioflow binary")
+        .args([
+            "capture",
+            "--source",
+            "snip",
+            "--store",
+            &store_s,
+            "--input-image",
+            &fixture.display().to_string(),
+        ])
+        .assert()
+        .success()
+        .stderr(predicate::str::contains(r#"matched rule "otp""#));
+}
+
+#[test]
+fn capture_auto_routes_sms_rule() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let fixture = dir.path().join("qr.png");
+    render_qr_fixture(&fixture, "SMSTO:+123456789:Hello from test");
+
+    let store = dir.path().join("rules.json");
+    let store_s = store.display().to_string();
+    Command::cargo_bin("visioflow")
+        .expect("visioflow binary")
+        .args(["rule", "--store", &store_s, "init-defaults"])
+        .assert()
+        .success();
+
+    Command::cargo_bin("visioflow")
+        .expect("visioflow binary")
+        .args([
+            "capture",
+            "--source",
+            "snip",
+            "--store",
+            &store_s,
+            "--input-image",
+            &fixture.display().to_string(),
+        ])
+        .assert()
+        .success()
+        .stderr(predicate::str::contains(r#"matched rule "sms""#));
+}
+
+#[test]
+fn capture_auto_routes_event_rule() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let fixture = dir.path().join("qr.png");
+    render_qr_fixture(
+        &fixture,
+        "BEGIN:VEVENT\nSUMMARY:Quarterly Sync\nLOCATION:Online\nEND:VEVENT",
+    );
+
+    let store = dir.path().join("rules.json");
+    let store_s = store.display().to_string();
+    Command::cargo_bin("visioflow")
+        .expect("visioflow binary")
+        .args(["rule", "--store", &store_s, "init-defaults"])
+        .assert()
+        .success();
+
+    Command::cargo_bin("visioflow")
+        .expect("visioflow binary")
+        .args([
+            "capture",
+            "--source",
+            "snip",
+            "--store",
+            &store_s,
+            "--input-image",
+            &fixture.display().to_string(),
+        ])
+        .assert()
+        .success()
+        .stderr(predicate::str::contains(r#"matched rule "event""#));
+}
+
