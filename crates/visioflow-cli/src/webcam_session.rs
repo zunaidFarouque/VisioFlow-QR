@@ -19,7 +19,7 @@ use crate::decode_worker::{AsyncDecodeWorker, DecodeOutcome};
 use crate::preview_overlay::draw_preview_status_overlay;
 use crate::screen_bounds::{apply_anchored_preview_position, primary_work_area};
 use crate::webcam_preview::{
-    downscale_bgr_to_minifb_buffer, mirror_bgr_horizontally, preview_dimensions_from_screen,
+    downscale_rgb_to_minifb_buffer, mirror_bgr_horizontally, preview_dimensions_from_screen,
     should_attempt_decode,
 };
 
@@ -208,7 +208,6 @@ where
         preview_height as usize,
         WindowOptions {
             resize: true,
-            topmost: true,
             ..WindowOptions::default()
         },
     )
@@ -220,30 +219,6 @@ where
         preview_width,
         preview_height,
     );
-
-    #[cfg(windows)]
-    {
-        use windows_sys::Win32::UI::WindowsAndMessaging::{
-            SetForegroundWindow, SetWindowPos, ShowWindow, HWND_TOPMOST, SWP_NOMOVE, SWP_NOSIZE,
-            SWP_SHOWWINDOW, SW_SHOW,
-        };
-        let hwnd = window.get_window_handle();
-        if !hwnd.is_null() {
-            unsafe {
-                ShowWindow(hwnd as _, SW_SHOW);
-                SetWindowPos(
-                    hwnd as _,
-                    HWND_TOPMOST,
-                    0,
-                    0,
-                    0,
-                    0,
-                    SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW,
-                );
-                SetForegroundWindow(hwnd as _);
-            }
-        }
-    }
 
     let mut window_buffer =
         Vec::with_capacity((preview_width as usize) * (preview_height as usize));
@@ -410,8 +385,9 @@ fn show_frame_in_window(
     window: &mut Window,
     buffer: &mut Vec<u32>,
 ) -> Result<()> {
-    downscale_bgr_to_minifb_buffer(
-        &frame.data,
+    let rgb = bgr_to_rgb(frame);
+    downscale_rgb_to_minifb_buffer(
+        &rgb,
         frame.width,
         frame.height,
         preview_width,
@@ -423,6 +399,16 @@ fn show_frame_in_window(
         .update_with_buffer(buffer, preview_width as usize, preview_height as usize)
         .map_err(|e| VisioFlowError::Capture(format!("failed to update preview window: {e}")))?;
     Ok(())
+}
+
+fn bgr_to_rgb(frame: &BgrFrame) -> Vec<u8> {
+    let mut rgb = Vec::with_capacity(frame.data.len());
+    for chunk in frame.data.as_chunks::<3>().0.iter().take(frame.data.len() / 3) {
+        rgb.push(chunk[2]);
+        rgb.push(chunk[1]);
+        rgb.push(chunk[0]);
+    }
+    rgb
 }
 
 #[cfg(test)]
@@ -468,10 +454,9 @@ mod tests {
     }
 
     #[test]
-    fn downscale_bgr_to_minifb_packs_channels_correctly() {
-        let mut buffer = Vec::new();
-        downscale_bgr_to_minifb_buffer(&[1, 2, 3], 1, 1, 1, 1, &mut buffer);
-        assert_eq!(buffer, vec![(3 << 16) | (2 << 8) | 1]);
+    fn bgr_to_rgb_swaps_channels() {
+        let frame = BgrFrame::new(1, 1, vec![1, 2, 3]);
+        assert_eq!(bgr_to_rgb(&frame), vec![3, 2, 1]);
     }
 
     #[test]

@@ -4,8 +4,6 @@ use std::time::Duration;
 
 use visioflow_core::traits::BgrFrame;
 
-pub use crate::preview_util::downscale_bgr_to_minifb_buffer;
-
 /// Default maximum width of the live preview window in pixels (display only).
 pub const DEFAULT_PREVIEW_MAX_WIDTH: u32 = 640;
 pub const DEFAULT_PREVIEW_SCALE: f32 = 0.12;
