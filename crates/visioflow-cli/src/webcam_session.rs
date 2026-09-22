@@ -208,6 +208,7 @@ where
         preview_height as usize,
         WindowOptions {
             resize: true,
+            topmost: true,
             ..WindowOptions::default()
         },
     )
@@ -219,6 +220,30 @@ where
         preview_width,
         preview_height,
     );
+
+    #[cfg(windows)]
+    {
+        use windows_sys::Win32::UI::WindowsAndMessaging::{
+            SetForegroundWindow, SetWindowPos, ShowWindow, HWND_TOPMOST, SWP_NOMOVE, SWP_NOSIZE,
+            SWP_SHOWWINDOW, SW_SHOW,
+        };
+        let hwnd = window.get_window_handle();
+        if !hwnd.is_null() {
+            unsafe {
+                ShowWindow(hwnd as _, SW_SHOW);
+                SetWindowPos(
+                    hwnd as _,
+                    HWND_TOPMOST,
+                    0,
+                    0,
+                    0,
+                    0,
+                    SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW,
+                );
+                SetForegroundWindow(hwnd as _);
+            }
+        }
+    }
 
     let mut window_buffer =
         Vec::with_capacity((preview_width as usize) * (preview_height as usize));
