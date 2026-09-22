@@ -5,19 +5,21 @@
 
 $ErrorActionPreference = "Stop"
 
-$llvmBin = "C:\Program Files\LLVM\bin"
-if (Test-Path $llvmBin) {
+$llvmCandidates = @("C:\Program Files\LLVM\bin", "D:\_installed\scoop\apps\llvm\current\bin")
+$llvmBin = $llvmCandidates | Where-Object { Test-Path $_ } | Select-Object -First 1
+if ($llvmBin) {
     $env:PATH = "$llvmBin;$env:PATH"
-} else {
-    Write-Warning "LLVM not found at $llvmBin — install LLVM or adjust scripts/dev-env.ps1"
+} elseif (-not (Get-Command clang -ErrorAction SilentlyContinue)) {
+    Write-Warning "LLVM not found — install LLVM or adjust scripts/dev-env.ps1"
 }
 
-$vcpkgRoot = "D:\vcpkg"
-if (Test-Path "$vcpkgRoot\vcpkg.exe") {
+$vcpkgCandidates = @($env:VCPKG_ROOT, "D:\_installed\scoop\apps\vcpkg\current", "D:\vcpkg")
+$vcpkgRoot = $vcpkgCandidates | Where-Object { $_ -and (Test-Path "$_\vcpkg.exe") } | Select-Object -First 1
+if ($vcpkgRoot) {
     $env:VCPKG_ROOT = $vcpkgRoot
     $env:VCPKGRS_TRIPLET = "x64-windows-static-md"
 } else {
-    Write-Warning "vcpkg not found at $vcpkgRoot — set VCPKG_ROOT to your vcpkg install"
+    Write-Warning "vcpkg not found at D:\vcpkg or Scoop install — set VCPKG_ROOT to your vcpkg install"
 }
 
 Write-Host "VisioFlow dev env:"

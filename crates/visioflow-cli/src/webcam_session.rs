@@ -443,9 +443,10 @@ mod tests {
     }
 
     #[test]
-    fn bgr_to_rgb_swaps_channels() {
-        let frame = BgrFrame::new(1, 1, vec![1, 2, 3]);
-        assert_eq!(bgr_to_rgb(&frame), vec![3, 2, 1]);
+    fn downscale_bgr_to_minifb_packs_channels_correctly() {
+        let mut buffer = Vec::new();
+        downscale_bgr_to_minifb_buffer(&[1, 2, 3], 1, 1, 1, 1, &mut buffer);
+        assert_eq!(buffer, vec![(3 << 16) | (2 << 8) | 1]);
     }
 
     #[test]

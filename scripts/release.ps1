@@ -60,7 +60,10 @@ param(
     [switch]$Force,
 
     [Parameter(Mandatory = $false)]
-    [switch]$DryRun
+    [switch]$DryRun,
+
+    [Parameter(Mandatory = $false)]
+    [switch]$RouterOnly
 )
 
 $ErrorActionPreference = 'Stop'
@@ -74,7 +77,7 @@ $AppName       = "VisioFlow"
 $PackageName   = "visioflow"
 $DistRelFolder = "dist\visioflow-win-x64"
 $MainBinaryRel = "target\release\visioflow.exe"
-$BuildCommandHint = "Please run .\scripts\build-release.ps1 -RouterOnly first."
+$BuildCommandHint = if ($RouterOnly) { "Please run .\scripts\build-release.ps1 -RouterOnly first." } else { "Please run .\scripts\build-release.ps1 first." }
 # ==============================================================================
 
 Write-Host "===================================================" -ForegroundColor Cyan
@@ -105,6 +108,15 @@ if (-not (Test-Path $exePath)) {
     exit 1
 }
 
+# Check: Binary feature parity (prevent releasing router-only binary as standard release)
+if (-not $RouterOnly) {
+    $probeOutput = & $exePath capture --source webcam --timeout 0 2>&1 | Out-String
+    if ($probeOutput -match "webcam capture requires the opencv-webcam feature") {
+        Write-Error "Pre-flight failed: Binary at '$exePath' was compiled without the 'opencv-webcam' feature! Release builds for VisioFlow must include full OpenCV/webcam support. (Pass -RouterOnly if you explicitly intend to release a router-only build)."
+        exit 1
+    }
+}
+
 # Check: GitHub CLI authenticated
 try {
     $null = gh auth status 2>&1
@@ -130,6 +142,7 @@ if (-not $Force -and -not $DryRun) {
     Write-Host "  - Version:      $Version ($tag)"
     Write-Host "  - Title:        $Title"
     Write-Host "  - Binary:       $exePath"
+    Write-Host "  - Mode:         $(if ($RouterOnly) { 'Router-Only (no webcam)' } else { 'Full (with OpenCV webcam & models)' })"
     Write-Host "  - Bucket Repo:  $BucketRepo"
     $confirm = Read-Host "`nAre you sure you want to publish this release to GitHub and trigger Scoop bucket sync? (y/N)"
     if ($confirm -notmatch '^(y|yes)$') {
@@ -145,11 +158,23 @@ $zipName = "visioflow-win-x64.zip"
 $zipPath = Join-Path $repoRoot "dist\$zipName"
 
 Write-Host "`n[1/6] Packaging portable distribution into '$zipName'..." -ForegroundColor Green
-& (Join-Path $PSScriptRoot "build-release.ps1") -RouterOnly
+if ($RouterOnly) {
+    & (Join-Path $PSScriptRoot "build-release.ps1") -RouterOnly
+} else {
+    & (Join-Path $PSScriptRoot "build-release.ps1")
+}
 
 if (-not (Test-Path $zipPath)) {
     Write-Error "Distribution packaging failed: '$zipPath' was not generated."
     exit 1
+}
+
+if (-not $RouterOnly) {
+    $modelsDir = Join-Path $DistRelFolder "models"
+    if (-not (Test-Path $modelsDir)) {
+        Write-Error "Distribution packaging failed: Models folder missing at '$modelsDir'."
+        exit 1
+    }
 }
 
 # ---------------------------------------------------------

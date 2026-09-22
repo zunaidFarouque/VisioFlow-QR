@@ -8,7 +8,7 @@
 # with the printed SHA256 hash before publishing a Scoop manifest.
 
 param(
-    [string]$VcpkgRoot = "D:\vcpkg",
+    [string]$VcpkgRoot,
     [string]$VcpkgTriplet = "x64-windows-static-md",
     [string]$OutDir = "dist\visioflow-win-x64",
     [string]$ZipPath = "dist\visioflow-win-x64.zip",
@@ -25,8 +25,20 @@ function Assert-LastExit([string]$Label) {
     }
 }
 
+if (-not $VcpkgRoot) {
+    $vcpkgCandidates = @($env:VCPKG_ROOT, "D:\_installed\scoop\apps\vcpkg\current", "D:\vcpkg")
+    $VcpkgRoot = $vcpkgCandidates | Where-Object { $_ -and (Test-Path "$_\vcpkg.exe") } | Select-Object -First 1
+}
+
 $env:VCPKG_ROOT = $VcpkgRoot
 $env:VCPKGRS_TRIPLET = $VcpkgTriplet
+
+# Ensure LLVM is on PATH for clang-runtime if available
+$llvmCandidates = @("C:\Program Files\LLVM\bin", "D:\_installed\scoop\apps\llvm\current\bin")
+$llvmBin = $llvmCandidates | Where-Object { Test-Path $_ } | Select-Object -First 1
+if ($llvmBin -and ($env:PATH -notlike "*$llvmBin*")) {
+    $env:PATH = "$llvmBin;$env:PATH"
+}
 
 Write-Host "==> Building visioflow-cli (release)..."
 if ($RouterOnly) {
