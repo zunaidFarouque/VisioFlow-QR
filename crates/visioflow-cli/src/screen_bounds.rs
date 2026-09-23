@@ -17,6 +17,85 @@ pub struct ScreenBounds {
     pub height: u32,
 }
 
+/// Ensure the current thread is attached to the interactive display desktop (`Default`).
+///
+/// In sandboxed terminal environments (e.g. Cursor, Antigravity IDE, SSH, or containerized runners),
+/// threads are often spawned into an isolated virtual desktop (`exebox-...`). Windows created
+/// in those sandboxes do not render to the physical monitor because DWM only composites the `Default`
+/// input desktop.
+///
+/// On Windows, this function queries the thread desktop and, if it is not `"default"`, dynamically
+/// binds the thread to the active user display desktop. On non-Windows platforms, this is a no-op.
+pub fn ensure_interactive_desktop() -> Option<String> {
+    #[cfg(windows)]
+    {
+        ensure_interactive_desktop_windows()
+    }
+    #[cfg(not(windows))]
+    {
+        None
+    }
+}
+
+#[cfg(windows)]
+fn ensure_interactive_desktop_windows() -> Option<String> {
+    use windows_sys::Win32::System::StationsAndDesktops::{
+        GetThreadDesktop, GetUserObjectInformationW, OpenDesktopW, OpenInputDesktop,
+        SetThreadDesktop, UOI_NAME,
+    };
+    use windows_sys::Win32::System::Threading::GetCurrentThreadId;
+
+    unsafe {
+        let current_desk = GetThreadDesktop(GetCurrentThreadId());
+        if current_desk.is_null() {
+            return None;
+        }
+
+        let mut buf = [0u16; 256];
+        let mut needed = 0u32;
+        let ok = GetUserObjectInformationW(
+            current_desk as _,
+            UOI_NAME,
+            buf.as_mut_ptr() as *mut _,
+            (buf.len() * 2) as u32,
+            &mut needed,
+        );
+
+        let current_name = if ok != 0 && needed > 2 {
+            let len = (needed as usize / 2).saturating_sub(1);
+            String::from_utf16_lossy(&buf[..len])
+        } else {
+            String::new()
+        };
+
+        if current_name.eq_ignore_ascii_case("default") {
+            return None;
+        }
+
+        // Try OpenInputDesktop first with GENERIC_ALL access
+        const GENERIC_ALL: u32 = 0x1000_0000;
+        const MAXIMUM_ALLOWED: u32 = 0x0200_0000;
+
+        let input_desk = OpenInputDesktop(0, 0, GENERIC_ALL);
+        if !input_desk.is_null() {
+            if SetThreadDesktop(input_desk) != 0 {
+                return Some("Default".to_owned());
+            }
+        }
+
+        // Fall back to opening the standard "default" desktop on WinSta0
+        let default_name: Vec<u16> = "default\0".encode_utf16().collect();
+        let default_desk = OpenDesktopW(default_name.as_ptr(), 0, 0, MAXIMUM_ALLOWED);
+        if !default_desk.is_null() {
+            if SetThreadDesktop(default_desk) != 0 {
+                return Some("default".to_owned());
+            }
+        }
+
+        None
+    }
+}
+
 /// Primary monitor work area in the same coordinate space minifb uses for positioning.
 pub fn primary_work_area() -> Option<ScreenBounds> {
     #[cfg(windows)]
@@ -152,6 +231,20 @@ pub fn apply_anchored_preview_position(
         window_outer_size(window).unwrap_or((client_width.max(1), client_height.max(1)));
     let (x, y) = anchored_window_position(bounds, outer_width, outer_height, anchor);
     window.set_position(x, y);
+    window.topmost(true);
+
+    #[cfg(windows)]
+    unsafe {
+        use windows_sys::Win32::UI::WindowsAndMessaging::{
+            BringWindowToTop, SetForegroundWindow, ShowWindow, SW_SHOW,
+        };
+        let hwnd = window.get_window_handle() as windows_sys::Win32::Foundation::HWND;
+        if !hwnd.is_null() {
+            ShowWindow(hwnd, SW_SHOW);
+            BringWindowToTop(hwnd);
+            SetForegroundWindow(hwnd);
+        }
+    }
 }
 
 #[cfg(test)]

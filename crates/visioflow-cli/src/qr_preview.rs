@@ -4,7 +4,9 @@ use visioflow_core::error::{Result, VisioFlowError};
 
 use crate::commands::capture::PreviewPosition;
 use crate::preview_util::{downscale_rgba_to_minifb_buffer, qr_preview_square_side};
-use crate::screen_bounds::{apply_anchored_preview_position, primary_work_area};
+use crate::screen_bounds::{
+    apply_anchored_preview_position, ensure_interactive_desktop, primary_work_area,
+};
 
 /// Show a blocking square preview window with the encoded QR image until Escape or close.
 pub fn show_qr_preview_window(
@@ -32,11 +34,14 @@ pub fn show_qr_preview_window(
         &mut scaled_buffer,
     );
 
+    ensure_interactive_desktop();
+
     let mut window = Window::new(
         "VisioFlow QR",
         side as usize,
         side as usize,
         WindowOptions {
+            topmost: true,
             resize: false,
             ..WindowOptions::default()
         },

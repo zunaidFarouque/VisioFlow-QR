@@ -368,6 +368,8 @@ fn hide_console_window() {
 }
 
 fn main() {
+    visioflow_cli::screen_bounds::ensure_interactive_desktop();
+
     #[cfg(windows)]
     hide_console_for_toast_protocol_if_needed();
 

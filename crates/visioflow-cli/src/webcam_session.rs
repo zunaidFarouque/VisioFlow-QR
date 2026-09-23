@@ -17,7 +17,9 @@ use visioflow_core::traits::{
 use crate::commands::capture::{ExposureBracketMode, PreviewPosition};
 use crate::decode_worker::{AsyncDecodeWorker, DecodeOutcome};
 use crate::preview_overlay::draw_preview_status_overlay;
-use crate::screen_bounds::{apply_anchored_preview_position, primary_work_area};
+use crate::screen_bounds::{
+    apply_anchored_preview_position, ensure_interactive_desktop, primary_work_area,
+};
 use crate::webcam_preview::{
     downscale_rgb_to_minifb_buffer, mirror_bgr_horizontally, preview_dimensions_from_screen,
     should_attempt_decode,
@@ -201,12 +203,14 @@ where
         verbose,
     )?;
     let decode_worker = AsyncDecodeWorker::spawn(decoder);
+    ensure_interactive_desktop();
 
     let mut window = Window::new(
         &format!("VisioFlow Webcam ({capture_width}x{capture_height}) — OpenCV WeChat Scanner"),
         preview_width as usize,
         preview_height as usize,
         WindowOptions {
+            topmost: true,
             resize: true,
             ..WindowOptions::default()
         },
